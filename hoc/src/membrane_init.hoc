@@ -1,0 +1,1355 @@
+/****************************************************************************
+Copyright (c) California Institute of Technology, 2006 -- All Rights Reserved
+Royalty free license granted for non-profit research and educational purposes.
+******************************************************************************/
+
+/*
+
+These procedures implement the non-uniform conductance densities
+defined in Gold et al. (2006) appendix.  init_membrane() is the main
+entry procedure called from main.hoc; it delegates control to
+indivudal routines to setup the soma, axon, basal dendrites, apical
+trunk, apical oblique and apical tuft.  These routines share
+procedures which setup the passive and ionic currents.  The general
+philosophy and some of the initial code is borrowed from Poirazi et
+al. (2003) but there have been substantial modifications.
+
+The file is organized as follows:
+
+Passive Setup 
+non-Uniform Ionic Current Density Setup - set passive and ionic properties for a single section
+Soma & Axon setup
+Dendrite Setup
+Ions & Mechanism Description Setup
+
+*/
+
+
+//-------------------------------------------------------------------------------------------------
+// SPINE & PASSIVE SETUP 
+//-------------------------------------------------------------------------------------------------
+
+/*************************************************************
+
+dend_pas_spine_setup(x, dens, length, distance)
+
+Setup capacitance and passive (leak) mechanism for a dendritic section
+with spines (the currently accessed section and a specific
+compartment) according to the folding factor described in Gold et
+al. (2006) appdendix A.
+
+$1 = x    = current x (compartment) of the section
+$2 = dens = density of spines per unit length
+$3 = length = length of the compartment (length of section divided by nsegs)
+$4 = distance from soma (for debug printout, not actually used here)
+
+The following global parameters should be pre-set in the cell type
+specific parameters file (i.e. ca1pyr_standard_params.hoc)
+
+V_rest     - resting potential of the cell
+r_m        - base (no spines) membrane resistance
+c_m        - base (no spines) soma/dendrite membrane resistance
+spine_area - surface area (square micrometers) of a single spine
+
+*/
+
+
+proc dend_pas_spine_setup() {local a, s, l, f
+    
+    
+    a = area($1)
+    
+    // s is the area of all spines on this compartment
+    s = $2 * $3 * spine_area
+    
+    // f is the ratio of spine area to cylinder membrane area
+    f = s/a
+    
+    e_pas     = V_rest
+    g_pas($1) = (1/r_m) * (1+f)
+    cm($1)    =    c_m  * (1+f)
+    
+    // sectionname(sname)
+    // print "SPINES & PASS: ", sname, "(", $1, ")  l=", $3, ", a=",a, ", d=", $4
+    // print "        dens=", $2, ", s=", s, ", f=",f, ", gpas=", g_pas," (rm=", (1/g_pas), ") cm=", cm, "(Ra=", Ra, ")"
+ }
+ 
+ 
+/*************************************************************
+
+no_pas_spine_setup()
+
+Sets up the capacitance and passive mechanism for an entire section
+assuming no spines.
+
+*/
+ 
+proc no_spine_pas_setup() { local x
+    
+    for (x) {
+	e_pas = V_rest
+	g_pas = 1/r_m
+	cm = c_m
+    }
+    
+}
+
+
+
+//-------------------------------------------------------------------------------------------------
+// NON-UNIFORM IONIC MECHANISM SETUP
+//-------------------------------------------------------------------------------------------------
+
+
+/***************************************************
+
+dend_a_setup(gka_prox, ka_prox_max_dist, gka_dist_min, gka_dist_max, ka_dist_max_dist, gka_small_dend_boost)
+
+Setup for A-type K channels as described in Gold et al. (2006)
+appendix: Proximal I_A is fixed conductance for < 100 um Distal I_A is
+linearly increasing for 100 < dist < 350.  Based on in vitro results
+in Hoffman et al, 1997
+
+$1 gka_prox - proximal A current density
+
+$2 ka_prox_max_dist - maximum distance considered proximal
+
+$3 gka_dist_min - initial density in distal dendrites
+
+$4 gka_dist_max - the amount added to the minimum to get the maximum
+density
+
+$5 ka_dist_max_dist - the distane at which distal A current reaches
+maximum density
+
+$6 gka_small_dend_boost - to raise the density still higher in
+obliques and tufts, as suggested by Frick et al, 2003
+
+*/
+
+proc dend_a_setup() {local x, d, d_factor, gka_prox, ka_prox_max_dist, gka_dist_min, gka_dist_max, ka_dist_max_dist, gka_small_dend_boost
+    
+    gka_prox = $1
+    ka_prox_max_dist = $2
+    gka_dist_min = $3
+    gka_dist_max = $4
+    ka_dist_max_dist = $5
+    gka_dist_small_dend_boost = $6
+    
+    // choose prox/distal based on mid-point of section
+    d = distance(0.5)
+    
+    if (d < ka_prox_max_dist ) {
+	
+	insert kaprox
+	
+	for(x,0)  {
+	    
+	    
+	    gbar_kaprox(x) = gka_prox
+	    
+	    // print secname() ,"(", x, ") -- dend_a_setup : d=", d, ", f=1", "-> gbar_kaprox=", gbar_kaprox(x)
+	}
+	
+    } else {
+	
+	insert kadist
+	
+	for(x,0) {
+	    
+	    d = distance(x)
+	    
+	    if (d < ka_dist_max_dist ) {
+		d_factor = (d-ka_prox_max_dist)/(ka_dist_max_dist-ka_prox_max_dist)
+	    } else {
+		d_factor = 1
+	    }
+	    
+	    gbar_kadist(x) = (gka_dist_min + gka_dist_max*d_factor)*gka_dist_small_dend_boost
+	    
+	    // print secname() ,"(",x, ") -- dend_a_setup: d=", d, ", f=", $1, "-> gbar_kadist=", gbar_kadist(x)
+	}
+    }
+}
+
+
+
+/******************************************************************
+
+dend_na_setup(gna_max, gna_min, gna_min_dist)
+
+Setup decrease in the Na conductance with distance in the dendrites
+as described in Gold et al. (2006) 
+
+$1 = max gna value
+$2 = min gna value
+$3 = min gna distance
+
+*/
+
+
+proc dend_na_setup() {local x, d, d_factor, gna_max, gna_min, gna_min_dist
+    
+    gna_max = $1
+    gna_min = $2
+    gna_min_dist = $3
+    
+    for(x,0) {
+	
+	d = distance(x)
+	
+	if (d < gna_min_dist ) {
+	    d_factor = (gna_min_dist-d)/gna_min_dist
+	} else {
+	    d_factor = 0
+	}
+	
+	gbar_naf(x) = gna_min + (gna_max-gna_min)*d_factor
+	
+	// print secname() ,"(",x, ") -- dend_na_setup :  d=", d, " gbar_naf=", gbar_naf(x)
+    }
+    
+}
+
+
+
+/*************************************************************************
+
+dend_kc_setup(gkc_dend, kc_max_distance)
+
+Setup density of C type K+ current as descrbed in Gold et al. (2006)
+appendix.  BK type Ca dependent K channels are most dense at soma and
+then declining to zero by around 100-150 um based on Poolos &
+Johnston, 1999 
+
+$1 = gkc_dend - the peak value for dendritic C type conductance
+$2 = kc_max_distance - maximum distance for C type conductance in the dendrite
+
+*/
+
+
+proc dend_kc_setup() {local x, dist, dist_factor, gkc_dend, kc_max_distance
+    
+    gkc_dend = $1
+    kc_max_distance = $2
+    
+    if (distance(0) < kc_max_distance) {
+	
+	insert kc
+	
+	for(x,0) {
+	    
+	    dist = distance(x)
+	    
+	    if (dist < kc_max_distance) {
+		dist_factor = (kc_max_distance-dist)/kc_max_distance
+	    } else {
+		dist_factor = 0
+	    }
+	    
+	    gbar_kc(x) = gkc_dend *dist_factor 
+	    // print secname() ,"(", x,") --  dend_kc_setup : dist=", dist, "...gbar_kc=",gkc_dend,"*",dist_factor,"=", gbar_kc(x) 
+	    
+	}
+    }
+    
+}
+
+
+
+
+
+/************************************************************* 
+
+dend_h_setup(gh_min, gh_max, gh_max_distance)
+
+Setup density of H current as descrbed in Gold et al. (2006) appendix.
+Distal h-current about 7 times higher at 300 um than the somatic value
+based on Magee, 1998
+
+$1 =  gh_min
+$2 =  gh_max
+$3 =  gh_max_distance
+
+*/
+    
+
+
+
+proc dend_h_setup() {local x, dist, d_factor, gh_min, gh_max, gh_max_distance
+    
+    gh_min = $1
+    gh_max = $2
+    gh_max_distance = $3
+    
+    soma_ref.sec { distance(0,0.5) }
+    
+    for (x,0) {
+		
+	dist = distance(x)
+	
+	if (dist < gh_max_distance) {
+	    d_factor = 1.0 - (gh_max_distance - dist)/gh_max_distance
+	    gbar_hdend(x) = gh_min + gh_max * d_factor
+	} else {
+	    gbar_hdend(x) = gh_min + gh_max
+	}
+	
+	
+	// print secname() , " -- dend_h_setup: x=",x,", dist=", dist, " ... gbar_hdend=", gbar_hdend(x), " (dfact=", d_factor , ")"
+    }
+    
+}
+
+
+
+
+/****************************************************************
+
+dend_kahp_setup(gkahp_hi, kahp_hi_max_distance, gkhap_lo)
+
+Setup density of AHP current as descrbed in Gold et al. (2006) appendix.
+SK type K-CA have high density in proximal dendrites, very low
+elsewhere, including soma (Sah & Bekkers, 1996)
+
+$1 = gkahp_hi - density  in proximal dends
+$2 = kahp_hi_max_distance - maximum distance for the high density
+$3 = gkahp_lo  - low density
+
+*/
+
+proc dend_kahp_setup() {local x, dist, gkahp_hi, gkahp_lo, kahp_hi_max_distance
+    
+    gkahp_hi = $1
+    kahp_hi_max_distance = $2
+    gkahp_lo = $3
+    
+    soma_ref.sec { distance(0,0.5) }
+    
+    for (x,0) {
+		
+	dist = distance(x)
+	
+	if (dist < kahp_hi_max_distance) {       
+            gbar_kahp(x) = gkahp_hi
+	} else {
+            gbar_kahp(x) = gkahp_lo
+	}
+	
+	// print secname() , " --  dend_kahp_setup : x=",x,", dist=", dist, "...gbar_kahp=", gbar_kahp(x) 
+    }   
+}
+
+
+
+
+
+
+
+/******************************************************************
+
+dend_cat_setup(gcat_dend, cat_peak_dist)
+
+Setup density of T type Ca++ current as descrbed in Gold et al. (2006)
+appendix.  T-type Ca++ (LVA) channels linearly increasing, for xdist <
+150 um, then at a constant density based on Magee & Johnston, 1995 
+
+$1 = gcat_dend - the maximum density
+$2 = cat_peak_dist - the distance at which density reaches the maximum
+
+*/
+
+proc dend_cat_setup() {local x, dist, gcat_dend, cat_peak_dist
+    
+    gcat_dend = $1
+    cat_peak_dist = $2
+    
+    soma_ref.sec { distance(0,0.5) }
+    
+    for (x,0) {
+		
+	dist = distance(x)
+	
+	if (dist > cat_peak_dist) {
+            gbar_cat(x) = gcat_dend
+	} else {
+            gbar_cat(x) = gcat_dend*(dist/cat_peak_dist)
+	} 
+	
+	// print secname() , " --  dend_cat_setup : x=",x,", dist=", dist, "...gbar_cat=", gbar_cat(x) 
+    }
+}
+
+
+
+
+/*****************************************************************
+
+dend_cal_setup(gcal_hi, cal_max_hi_dist, gcal_lo)
+
+Setup density of L type Ca++ current as descrbed in Gold et al. (2006)
+Somatic density for proximal dendrites, much less when not close to
+the soma based on Magee & Johnston, 1995
+
+$1 = gcal_hi - high density
+$2 = cal_max_hi_dist - maximum distance for high density
+$3 = gcal_lo - low density
+
+*/
+
+
+proc dend_cal_setup() {local x, dist, gcal_hi, cal_max_hi_dist, gcal_lo
+    
+    gcal_hi = $1
+    cal_max_hi_dist = $2
+    gcal_lo = $3
+    
+    soma_ref.sec { distance(0,0.5) }
+    
+    for (x,0) {
+		
+	dist = distance(x)
+	
+	
+	if (dist < cal_max_hi_dist) {            
+            gbar_cal(x) = gcal_hi
+	} else {
+            gbar_cal(x) = gcal_lo
+	}
+	
+	
+	// print secname() ,"(", x, ") --  dend_cal_setup : dist=", dist, "...gbar_cal=", gbar_cal(x) 
+    }
+}
+
+
+
+//-----------------------------------------------------------------------------
+// AXON/SOMA SECTION SETUPS
+//-----------------------------------------------------------------------------
+
+
+/**********************************************************************
+
+setup_soma()
+
+Has the same set of channels as dendrites at fixed densities.
+
+*/
+
+
+proc setup_soma() {
+    
+    
+    if (VERBOSE == 1) {
+	print "*********************************************************"
+	print "SETUP SOMA  "
+    }
+
+    soma_ref.sec {
+	
+        insert naf    
+        gbar_naf = gna_default
+	
+	insert kk
+        gbar_kk  = gkk
+	
+	insert kd
+	gbar_kd = gkd
+
+	
+        insert pas 
+        g_pas =  1/r_m
+        e_pas = V_rest
+        Ra    = r_a
+	cm = c_m
+	
+        insert hsoma
+        gbar_hsoma  = gh_soma
+	       
+        insert kaprox
+        gbar_kaprox = gka_prox_apical
+	
+        insert cal
+        gbar_cal = gcal_soma
+        
+        insert can
+        gbar_can = gcan_soma
+        
+        insert km 
+        gbar_km = gkm
+        
+        insert kc
+	gbar_kc = gkc_soma
+        
+        insert cadifus
+	cai0_cadifus = cai_init
+	
+	insert kahp
+        gbar_kahp = gkahp_lo_apical
+    } 
+    
+}
+
+/**********************************************************************
+
+setup_axon()
+
+Each type of axonal section has specific properties as described in
+Gold et al. (2006) appendix.  The procedure checks whether the 
+references for the initial segment and axon hillock are actually
+defined - this way the cell does not actually need to have an 
+axon and the code still runs.  (If there are no myelin/node sections
+those lists will simply be empty, so no explicit check is needed.)
+
+*/
+    
+proc setup_axon() {
+    
+    if (VERBOSE == 1) {
+	print "*********************************************************"
+	print "SETUP AXON "
+    }
+    
+
+    if (object_id(iseg_ref) ) {
+	iseg_ref.sec {
+	    
+	    nseg = n_axon_seg
+	    
+	    insert nax    
+	    gbar_nax = gna_iseg
+	    
+	    insert kk
+            gbar_kk  = gkk
+	    
+	    insert kd
+	    gbar_kd = gkd
+	    
+            insert pas 
+            g_pas       = 1/r_m
+            e_pas       = V_rest
+            Ra          = r_a_ax
+            cm          = c_m
+	}
+    }
+    
+    if ( object_id(hill_ref) ) {
+	hill_ref.sec {
+	    
+	    nseg = n_axon_seg
+	    
+	    insert naf    
+	    gbar_naf = gna_default
+	    
+	    insert kk
+	    gbar_kk  = gkk
+	    
+	    insert kd
+	    gbar_kd = gkd
+	    
+	    insert pas 
+	    g_pas       = 1/r_m
+	    e_pas       = V_rest
+	    Ra          = r_a_ax
+	    cm          = c_m
+	}
+    }
+    
+    
+    forsec node_sections {
+	
+	nseg = 1
+	
+	insert nax    
+	gbar_nax = gna_node
+	
+        insert pas  
+        g_pas       = 1/r_m_node
+        e_pas       = V_rest
+        Ra          = r_a_ax
+        cm          = c_m
+	
+    }
+    
+    
+    // nodes, iseg and hill use pre-defined nsegs but for myelin use dlambda
+    define_nsegs(my_sections,0)	
+    
+    forsec my_sections {
+	
+	insert pas 
+	e_pas = V_rest 
+	g_pas = 1/r_m_my
+	Ra    = r_a_ax
+	cm    = c_m_my
+    }
+    
+    
+}
+
+
+
+//-----------------------------------------------------------------------------
+// DENDRITE SETUP
+//-----------------------------------------------------------------------------
+
+
+/**********************************************************************
+
+all_dend_inserts()
+
+Inserts mechanisms that occur in all dendrites (into the currently
+accessed section); additional inserts are made in mechanism specific
+setup routines for cases where the mechanism is not always present.
+
+*/
+
+proc all_dend_inserts() {
+    
+    insert naf    
+    insert kk
+    insert kd
+    insert car
+    insert cadifus  
+    insert hdend
+    insert cal
+    insert cat  
+    insert km 
+    insert kahp
+    
+}
+
+
+
+/*********************************************************************
+
+apical_membrane_init(sec_list, A factor)
+
+Sets up ionic channels with apical dendrite properties for a given
+list of sections.  Will be called separately for trunk, oblique, tuft
+with different values of the A current "boost" factor (otherwise
+trunk, oblique and tuft have the same properties.)
+
+$o1 = list of sections to work on 
+$2 = factor to use in the A current
+*/
+
+proc apical_membrane_init() {local x
+    
+    tmp_ref = $o1
+    
+    soma_ref.sec { distance(0,0.5) }
+    
+    forsec tmp_ref {
+	
+	all_dend_inserts()
+	
+	dend_kc_setup(gkc_apical, kc_max_distance_apical)     
+        dend_a_setup(gka_prox_apical, kaprox_max_dist_apical, gka_dist_min_apical, gka_dist_max_apical, kadist_peak_dist_apical, $2)  
+	dend_na_setup(gna_apical_max, gna_apical_min, gna_apical_min_dist)     
+	dend_h_setup(gh_apical_min, gh_apical_max, h_max_distance_apical) 
+	dend_kahp_setup(gkahp_hi_apical, kahp_max_hi_distance_apical, gkahp_lo_apical)  
+        dend_cat_setup(gcat_apical, cat_max_distance_apical)  
+        dend_cal_setup(gcal_apical_hi , cal_max_hi_distance_apical  , gcal_apical_lo )  
+	
+	// setup for constant channel densities
+	for (x,0) {
+	    
+	    gbar_kk(x)  = gkk
+	    gbar_kd(x)  = gkd
+	    gbar_km(x)  = gkm
+	    cai0_cadifus(x) = cai_init
+	    gbar_car(x) = gcar_dend
+	}
+    }
+}
+
+
+
+/***********************************************************
+
+Sets up ionic channels with basal dendrite properties for a given
+list of sections.  
+
+$o1 = list of sections to work on 
+$2 = factor to use in the A current
+*/
+
+proc basal_membrane_init() {
+    
+    tmp_ref = $o1
+    
+    soma_ref.sec { distance(0,0.5) }
+    
+    forsec tmp_ref {
+	
+	all_dend_inserts()
+	
+	dend_kc_setup(gkc_basal, kc_max_distance_basal)
+        dend_a_setup(gka_prox_basal, kaprox_max_dist_basal, gka_dist_min_basal, gka_dist_max_basal, kadist_peak_dist_basal, 1.0)  
+	dend_na_setup(gna_basal_max, gna_basal_min, gna_basal_min_dist)
+	dend_h_setup(gh_basal_min, gh_basal_max, h_max_distance_basal) 
+	dend_kahp_setup(gkahp_hi_basal, kahp_max_hi_distance_basal, gkahp_lo_basal)     
+        dend_cat_setup(gcat_basal, cat_max_distance_basal)       
+        dend_cal_setup( gcal_basal_hi , cal_max_hi_distance_basal, gcal_basal_lo)   
+	
+	// constant density channels
+	for (x,0) {
+	    
+	    gbar_kk(x)  = gkk_basal
+	    gbar_kd(x)  = gkd_basal
+	    gbar_km(x)  = gkm_basal
+	    gbar_car(x) = gcar_basal
+	    cai0_cadifus(x) = cai_init		    
+	}	
+	
+    }
+}
+
+
+
+/***********************************************************
+
+setup_trunk()
+
+Called from main membrane_init routine.  Calls helper functions
+to setup spines & passive properties, the number of compartments
+per section, and to intialize ionic current mechanisms.
+
+*/
+
+
+proc setup_trunk() {local dist
+     
+    if (VERBOSE == 1) {
+	print "*********************************************************"
+	print "SETUP TRUNK "
+    }
+    
+    forsec trunk_sections {
+	
+	insert pas
+    
+	if (is_spiny == 1) {
+	    trunk_pas_spine_setup()
+	}else {
+	    no_spine_pas_setup()  
+	} 
+    }
+    
+    define_nsegs(trunk_sections, trunk_max_seg_length)  // do this after the spine correction...
+    
+    apical_membrane_init(trunk_sections, 1)
+}
+
+
+/***********************************************************
+
+trunk_pas_spine_setup()
+
+A wrapper around the call to dend_pas_spine_setup that determines the
+correct density of spines based on the distance and diameter of the
+trunk section.
+
+*/
+
+proc trunk_pas_spine_setup() {local d, l, x, dens
+    
+    soma_ref.sec { distance(0,0.5) }
+    l = L/nseg
+    
+    for (x,0) {
+	
+	d = distance(x)
+	
+	if (d < trunk_med_min_dist) {
+	    dens = trunk_prox_spine_dens
+	}
+	
+	if (d >= trunk_med_min_dist && d <= trunk_med_max_dist ) {
+	    dens = trunk_med_spine_dens
+	}
+	
+	if (d > trunk_med_max_dist) {
+	    dens = trunk_dist_spine_dens
+	}
+	
+	dend_pas_spine_setup(x, dens, l, d)
+	
+    }
+    
+}
+
+
+/***********************************************************
+
+setup_oblique()
+
+Called from main membrane_init routine.  Calls helper functions
+to setup spines & passive properties, the number of compartments
+per section, and to intialize ionic current mechanisms.
+
+*/
+
+proc setup_oblique() {local dist
+    
+    
+    if (VERBOSE == 1) {
+	print "*********************************************************"
+	print "SETUP OBLIQUE "
+    }
+    
+    forsec oblique_sections {
+	
+	insert pas
+	
+	if (is_spiny == 1) {
+	    oblique_pas_spine_setup()
+	}else {
+	    no_spine_pas_setup()  
+	} 
+    }
+    
+    define_nsegs(oblique_sections,oblique_max_seg_length)
+    
+    apical_membrane_init(oblique_sections, gka_oblique_factor)
+}
+
+
+/***********************************************************
+
+oblique_pas_spine_setup()
+
+A wrapper around the call to dend_pas_spine_setup that determines the
+correct density of spines based on the distance of the oblique section
+to the soma.
+
+*/
+
+proc oblique_pas_spine_setup() {local d, l, x, dens
+    
+    soma_ref.sec { distance(0,0.5) }
+    l = L/nseg
+    
+    for (x,0) {
+	
+	d = distance(x)
+	
+	if (d < lm_min_dist) {
+	    dens = oblique_prox_spine_dens
+	}
+	
+	if (d >= lm_min_dist) {
+	    dens = oblique_dist_spine_dens
+	}
+	
+	dend_pas_spine_setup(x, dens, l, d)
+	
+    }
+    
+}
+
+
+/***********************************************************
+
+setup_tuft()
+
+Called from main membrane_init routine.  Calls helper functions
+to setup spines & passive properties, the number of compartments
+per section, and to intialize ionic current mechanisms.
+
+*/
+
+proc setup_tuft() {local dist
+    
+    if (VERBOSE == 1) {
+	print "*********************************************************"
+	print "SETUP TUFT "
+    }
+    
+    
+    forsec tuft_sections {
+	
+	insert pas
+	
+	if (is_spiny == 1) {
+	    tuft_pas_spine_setup()
+	}else {
+	    no_spine_pas_setup()  
+	} 
+    }
+    
+    define_nsegs(tuft_sections,tuft_max_seg_length)
+    
+    apical_membrane_init(tuft_sections, gka_tuft_factor)
+}
+
+
+/***********************************************************
+
+tuft_pas_spine_setup()
+
+A wrapper around the call to dend_pas_spine_setup that determines the
+correct density of spines based on the distance of the tuft section
+from the soma.
+
+*/
+
+proc tuft_pas_spine_setup() {local d, l, x, dens
+    
+    soma_ref.sec { distance(0,0.5) }
+    l = L/nseg
+    
+    for (x,0) {
+	
+	d = distance(x)
+	
+	if (d < lm_min_dist) {
+	    dens = tuft_prox_spine_dens
+	}
+	
+	if (d >= lm_min_dist) {
+	    dens = tuft_dist_spine_dens
+	}
+	
+	dend_pas_spine_setup(x, dens, l, d)
+	
+    }
+    
+}
+
+
+/***********************************************************
+
+setup_basal()
+
+Called from main membrane_init routine.  Calls helper functions
+to setup spines & passive properties, the number of compartments
+per section, and to intialize ionic current mechanisms.
+
+*/
+
+proc setup_basal() {local dist
+    
+    
+    if (VERBOSE == 1) {
+	print "*********************************************************"
+	print "SETUP BASAL "
+     }
+    
+    forsec basal_sections {
+	
+	insert pas
+	
+	if (is_spiny == 1) {
+	    basal_pas_spine_setup()
+	}else {
+	    no_spine_pas_setup()  
+	} 
+    }
+    
+    define_nsegs(basal_sections,basal_max_seg_length)  
+    
+    basal_membrane_init(basal_sections)
+}
+
+
+/***********************************************************
+
+basal_pas_spine_setup()
+
+A wrapper around the call to dend_pas_spine_setup that determines the
+correct density of spines based on the distance of the basal section
+from the soma.
+
+*/
+
+proc basal_pas_spine_setup() {local d, l, x, dens
+    
+    l = L/nseg
+    soma_ref.sec { distance(0,0.5) }
+    
+    for (x,0) {
+	
+	d = distance(x)
+	
+	if (d <= basal_prox_max_dist) {
+	    dens = basal_prox_spine_dens
+	}
+	
+	if (d > basal_prox_max_dist) {
+	    dens = basal_dist_spine_dens
+	}
+	
+	dend_pas_spine_setup(x, dens, l, d)
+	
+    }
+    
+}
+
+//---------------------------------------------------------------------------------------
+
+objref rand
+random_seed = 0
+
+func jitter_gbar() {local old_gbar, percent, new_gbar
+    
+    old_gbar = $1
+    percent = $2
+    
+    new_gbar = old_gbar + rand.uniform(-percent,percent)*old_gbar
+    
+    return new_gbar
+}
+
+proc jitter_gbars() {local x, percent, old, gbnaf, gbnax, gbkk, gbkd, gbkm, gbkap, gbkad
+    
+    if (name_declared("jitter_gbar_percent")==5) {
+	   
+	if (jitter_gbar_percent > 0) {
+	    
+	    sprint(fname,"%s/%s_%s_jittered_gbars.dat",output_dir,neuron_name,trial_num_name)
+	    wopen(fname)
+	    
+	    print "***************************************************************"
+	    print "DOING jitter_gbars"
+	    
+	    system("date +%N", tmp_str)
+	    sscanf(tmp_str, "%d", &random_seed)
+	    print "RANDOM INIT w/ Seed ", random_seed, " from date +%N=", tmp_str
+	    
+	    rand = new Random(random_seed)
+	    
+	    fprint("%%Sec.\tX\tnaf\tnax\tkk\tkd\tkm\tkc\tkaprox\tkadist\n")
+	    
+	    forall {
+		
+		if (issection("soma")) {
+		    print "   Skipping Soma!"
+		    continue
+		}
+		
+		// print "jitter_gbars : ", secname()
+		
+		for (x,0) {
+		    
+		    if (ismembrane("naf")) {
+			old = gbar_naf(x)
+			gbar_naf(x) = jitter_gbar(gbar_naf(x), jitter_gbar_percent)
+			// print "      (", x,") gbar_naf  OLD=", old, " >> NEW =", gbar_naf(x) 
+			gbnaf = gbar_naf(x)
+		    } else {
+			gbnaf = 0
+		    }
+		    
+		    if (ismembrane("nax")) {
+			old = gbar_nax(x)
+			gbar_nax(x) = jitter_gbar(gbar_nax(x), jitter_gbar_percent)
+			// print "      (", x,") gbar_nax  OLD=", old, " >> NEW =", gbar_nax(x) 
+			gbnax = gbar_nax(x)
+		    } else {
+			gbnax = 0
+		    }
+		    
+		    if (ismembrane("kk")) {
+			old = gbar_kk(x)
+			gbar_kk(x) = jitter_gbar(gbar_kk(x), jitter_gbar_percent)
+			// print "      (", x,") gbar_kk  OLD=", old, " >> NEW =", gbar_kk(x) 
+			gbkk = gbar_kk(x)
+		    } else {
+			gbkk = 0
+		    }
+		    
+		    if (ismembrane("kd")) {
+			old = gbar_kd(x)
+			gbar_kd(x) = jitter_gbar(gbar_kd(x), jitter_gbar_percent)
+			// print "      (", x,") gbar_kd  OLD=", old, " >> NEW =", gbar_kd(x) 
+			gbkd = gbar_kd(x)
+		    } else {
+			gbkd = 0
+		    }
+		    
+		    if (ismembrane("km")) {
+			old = gbar_km(x)
+			gbar_km(x) = jitter_gbar(gbar_km(x), jitter_gbar_percent)
+			// print "      (", x,") gbar_km  OLD=", old, " >> NEW =", gbar_km(x) 
+			gbkm = gbar_km(x)
+		    } else {
+			gbkm = 0
+		    }
+		    
+		    if (ismembrane("kc")) {
+			old = gbar_kc(x)
+			gbar_kc(x) = jitter_gbar(gbar_kc(x), jitter_gbar_percent)
+			// print "      (", x,") gbar_kc  OLD=", old, " >> NEW =", gbar_kc(x) 
+			gbkc = gbar_kc(x)
+		    } else {
+			gbkc = 0
+		    }
+		    
+		    if (ismembrane("kaprox")) {
+			old = gbar_kaprox(x)
+			gbar_kaprox(x) = jitter_gbar(gbar_kaprox(x), jitter_gbar_percent)
+			// print "      (", x,") gbar_kaprox  OLD=", old, " >> NEW =", gbar_kaprox(x) 
+			gbkap = gbar_kaprox(x)
+		    } else {
+			gbkap = 0
+		    }
+		    
+		    if (ismembrane("kadist")) {
+			old = gbar_kadist(x)
+			gbar_kadist(x) = jitter_gbar(gbar_kadist(x), jitter_gbar_percent)
+			// print "      (", x,") gbar_kadist  OLD=", old, " >> NEW =", gbar_kadist(x) 
+			gbkad = gbar_kadist(x)
+		    } else {
+			gbkad = 0
+		    }
+		    
+		    fprint("%s\t%.3f\t%.5f\t%.5f\t%.5f\t%.5f\t%.5f\t%.5f\t%.5f\t%.5f\n",secname(), x, gbnaf, gbnax, gbkk, gbkd, gbkm, gbkc, gbkap, gbkad )
+		}
+	    }
+	}
+	
+	wopen()
+    }   
+}
+
+
+//---------------------------------------------------------------------------------------
+// IONS & MECHANISM DESCRIPTION
+//---------------------------------------------------------------------------------------
+
+/*********************************************************
+
+ions_setup()
+
+Set the ion "styles" and reversal potentials for all sections
+that include a mechanism using each ion type.
+
+*/
+
+
+proc ions_setup() {
+    
+    forall {
+	
+	if(ismembrane("ca_ion")) {
+	    
+	    ion_style("ca_ion",0,1,0,0,0)
+	    eca = E_ca
+
+	}
+	
+	if(ismembrane("na_ion")) {
+	    
+	    ion_style("na_ion",0,1,0,0,0)
+	    ena = E_na
+
+	}
+	
+	if(ismembrane("k_ion")) {
+	    
+	    ion_style("k_ion",0,1,0,0,0)
+	    ek = E_k
+	    
+	}
+	
+    }
+}
+
+/***************************************************************************
+
+make_mechanism_list()
+
+Creates a list of MechDesc objects from the template defined in
+mechdesc.hoc.  There should be one MechDesc object for every type of
+ionic current mechanism included.  If mechanisms are added or removed
+from the model the changes should be reflected in this procedure.
+These are used to print the details for selected compartments.  See
+mechdesc.hoc and current_util.hoc.hoc for further details.
+
+*/
+
+proc make_mechanism_list() {
+    
+    all_mechs_list = new List()
+    
+    sprint(tmp_str, "%s/%s_%s_mech_gates.txt", output_dir,neuron_name,trial_num_name)
+    mech_desc_file = new File()
+    mech_desc_file.wopen(tmp_str)
+
+    tmp_ref = new MechDesc("naf", "na", "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_naf)
+    tmp_ref.add_gate_part("h",exp_h_naf)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)     
+    
+    
+    tmp_ref = new MechDesc("nax", "na", "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_nax)
+    tmp_ref.add_gate_part("h",exp_h_nax)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)  
+    
+    tmp_ref = new MechDesc("kk","k", "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_kk)
+    tmp_ref.add_gate_part("h",exp_h_kk)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)
+    
+    tmp_ref = new MechDesc("kd","k", "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_kd)
+    tmp_ref.add_gate_part("h",exp_h_kd)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref) 
+    
+    tmp_ref = new MechDesc("kaprox", "k", "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_kaprox)
+    tmp_ref.add_gate_part("h",exp_h_kaprox)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref) 
+    
+    tmp_ref = new MechDesc("kadist", "k", "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_kadist)
+    tmp_ref.add_gate_part("h",exp_h_kadist)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)
+    
+    tmp_ref = new MechDesc("km", "k",  "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("n",exp_n_km)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)
+    
+    tmp_ref = new MechDesc("kahp", "k",  "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("n",2)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)
+    
+    
+    tmp_ref = new MechDesc("kc", "k",  "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("O",1)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)
+    
+    
+    tmp_ref = new MechDesc("hsoma", "nak", "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("n",exp_n_hsoma)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref) 
+    
+    tmp_ref = new MechDesc("hdend", "nak", "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("n",exp_n_hdend)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref) 
+    
+    tmp_ref = new MechDesc("can", "ca",  "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_can)
+    tmp_ref.add_gate_part("h",exp_h_can)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)
+    
+    tmp_ref = new MechDesc("cal", "ca",  "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("n",exp_n_cal)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref) 
+    
+    
+    tmp_ref = new MechDesc("cat", "ca",  "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_cat)
+    tmp_ref.add_gate_part("h",exp_h_cat)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref) 
+    
+    tmp_ref = new MechDesc("car", "ca",  "gbar")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_gate_part("m",exp_m_car)
+    tmp_ref.add_gate_part("h",exp_h_car)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)
+    
+    
+    tmp_ref = new MechDesc("cadifus", "ca",  "")
+    tmp_ref.self_define(tmp_ref)
+    tmp_ref.add_array_var("ca",4)
+    tmp_ref.add_array_var("CaBuffer",4)
+    tmp_ref.add_array_var("Buffer",4)
+    tmp_ref.output_names(mech_desc_file)
+    // tmp_ref.print_mech_desc()
+    all_mechs_list.append(tmp_ref)
+        
+    mech_desc_file.close()
+}
+
+
+
+
+//---------------------------------------------------------------------------------------
+//  MAIN  MEMBRANE SET-UP PROCEEDURE 
+//---------------------------------------------------------------------------------------
+
+/********************************************************************
+
+init_membrane()
+
+Top level routine for setting up the membrane properties of the cell.
+
+*/
+
+proc init_membrane() {
+    
+    // make sure distance is initialized
+    soma_ref.sec { distance(0,0.5) }
+    
+    
+    // get this out of the way...
+    // (It will be reset for axonal sections later)
+    forall Ra = r_a
+    
+    setup_soma()
+    
+    setup_axon()
+    
+    setup_basal()
+    
+    setup_trunk()
+    
+    setup_oblique()
+    
+    setup_tuft()
+    
+    ions_setup()
+    
+    make_mechanism_list()
+    
+    jitter_gbars()
+}

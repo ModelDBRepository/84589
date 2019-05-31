@@ -1,0 +1,433 @@
+/****************************************************************************
+Copyright (c) California Institute of Technology, 2006 -- All Rights Reserved
+Royalty free license granted for non-profit research and educational purposes.
+******************************************************************************/
+
+/*
+
+These file contains utilities used by the main program to setup the
+cell and perform some miscellaneous aspects of the simulation.
+There are 3 sections:
+
+Making Lists
+Defining The Number of Compartments
+Simulated Synaptic Input
+
+*/
+
+
+
+// --------------------------------------------------------------
+// MAKING LISTS
+// --------------------------------------------------------------
+
+/*
+
+These procedures serve the purpose of separating the classification of
+dendrites from the initialization of their properties (in
+membrane_init.)  The general idea is based on Poirazi et al. (2003)
+although the specifics of the implemenation are changed.  
+
+*/
+
+/***********************************************************
+
+make_apical_lists()
+
+This procedure further classifies apical dendrites based on their
+diameter.  It assumes that the section list apical_sections has
+already been define.  The parameters setting the diameter limits are
+defined in the standard parameter set for a cell type
+(i.e. ca1pyr_standard_params for d151).
+
+*/
+
+
+proc make_apical_lists() {
+    
+    trunk_sections = new SectionList()
+    oblique_sections = new SectionList()
+    tuft_sections = new SectionList()
+    
+    print "Making make_apical_lists..."
+    
+    forsec apical_sections {
+	
+	
+	if (n3d() == 0) {
+	    continue
+	}
+	
+	if (diam3d(0) >= trunk_min_diam) {
+	    trunk_sections.append()
+	}
+	
+	
+	if (diam3d(0) < trunk_min_diam && diam3d(0) > tuft_max_diam) {
+	    oblique_sections.append()
+	}
+	
+	if (diam3d(0) <= tuft_max_diam) {
+	    tuft_sections.append()
+	}
+	
+    }
+    
+}
+
+/****************************************************************
+
+make_lists()
+
+Simply divide the sections up into lists based on their names.
+The categories used are:
+
+soma
+nodes of ranvier
+myelinated sections
+apical
+basal
+
+We assume a naming convention where the apical dendrites
+will always have 'apical' somewhere in their name somewhere.
+Basal is used as a default for any sections whose name does
+not match anything else.  So a dendrite named "dend_x" would
+be listed as basal.
+
+If you use a cell with a different naming convention for the sections
+you would have to change the name patterns in this method.  (The best
+way to do this would be to make if .. else ... alternatives based on
+the neuron_name and/or cell_type variables defined in the cell file.)
+
+*/
+ 
+
+proc make_lists() {
+    
+    node_sections = new SectionList()
+    my_sections = new SectionList()
+
+    basal_sections = new SectionList()
+    apical_sections = new SectionList()
+    
+    forall {
+	
+	if (issection("soma")) {
+	    soma_ref = new SectionRef()
+	    continue
+	}
+	
+	if (issection("iseg")) {
+	    iseg_ref = new SectionRef()
+	    continue
+	}
+	
+	
+	if (issection("hill")) {
+	    hill_ref = new SectionRef()
+	    continue
+	}
+	
+	if (issection(".*myelin.*")) {
+	    my_sections.append()
+	    continue
+	}
+	
+	if (  issection(".*node.*")) {
+	    node_sections.append()
+	    continue
+	}
+	
+	
+	// after soma, axon, apical, basal (default dendrite) should be the only option left
+	
+	if (issection(".*apical.*")) {
+	    apical_sections.append()
+	    
+	} else {
+	    basal_sections.append()
+	}
+    }   
+    
+    // further categorize the apical sections based on diameter and distance
+    make_apical_lists()
+}
+
+
+
+
+
+// --------------------------------------------------------------
+// DEFINING COMPARTMENTS
+// --------------------------------------------------------------
+
+/* 
+
+This procedure and function define the number of compartments using
+the "D-Lambda" method described in Hines & Carnevale (2001).  These
+procedures are actually called from membrane_init.hoc when the
+properties of the membrane are setup.
+
+*/
+
+
+/**********************************************************
+
+calc_nsegs_dlambda()
+
+Calculates the number of segments for the currently accessed section
+based on the dlambda criteria (but without actually setting the number
+of segments)
+
+*/
+
+
+func calc_nsegs_dlambda() {local ns, lambda_f100
+    
+    lambda_f100 = 0
+    ns = 0
+    
+    lambda_f100 = .5 * sqrt(diam/(Ra*100*cm*100*PI))*1e6
+    
+    ns = int(L/(my_dlambda*lambda_f100)) 
+    
+    // make sure to always use an odd number of segments
+    if ((ns % 2) == 0) {
+	ns = ns+1
+    }   
+    
+    return ns
+}
+
+/************************************************************
+
+define_nsegs(section, max_compartment_length)
+
+$o1 = sections to do it for
+$2 = max seg length param  to force more segs in wide sections
+
+Takes in a section as an argument and sets the number of compartments
+(nseg).  The procedures also accepts a "maximum_compartment_length"
+parameter and the number of compartments is set to the greater of the
+number based on dlambda and the number based on simple length
+consideration.  This is useful for the apical trunk where the dlambda
+method would chooser longer compartments than I would prefer based on
+"aesthetic considerations" such as the need to have plots of the
+compartment details at specific locations.  If not then a zero
+max_length is used the default is just the dlambda calculation.
+
+*/
+
+proc define_nsegs() {local lam_ns, max_length, min_ns
+    
+    
+    tmp_ref = $o1
+
+    
+    max_length = $2
+    
+    forsec tmp_ref { 
+	
+	if (max_length != 0) {
+	    min_ns = int(L/max_length + 0.5)	// make int() round up with + 0.5
+	    // make sure to always use an odd number of segments
+	    if ((min_ns % 2) == 0) {
+		min_ns = min_ns+1
+	    } 
+	} else {
+	    min_ns = 0
+	}
+	
+	lam_ns = calc_nsegs_dlambda()
+	
+	if (min_ns < lam_ns) {
+	    nseg = lam_ns
+	} else {
+	    nseg = min_ns
+	}
+    }
+    
+}
+
+
+
+
+
+
+//---------------------------------------------------------------
+// SIMULATED SYNAPTIC INPUT
+//----------------------------------------------------------------
+
+/* These procedures implement the system of simulated synaptic input
+as described in Gold et al. (2006):  Synaptic input is simulated with
+the passive (pas) mechanism by simply setting the reversal potential
+to be above threshold and increasing the conductance.  It is originally
+based on the system used by Holt and Koch (1999).
+
+*/
+
+
+/****************************************************************
+Global variables for synaptic input.
+*/
+
+syn_in_on = 0      // =1 when the synaptic input is currently turned on
+syn_in_on_time = 0 // = the exact time at which it was turned on
+
+
+/****************************************************************
+
+set_syn_in_for_sec(epas_new, gpas_ratio)
+
+Modifies the passive mechanism for the current section
+$1 = new epas
+$2 = change gpas factor
+*/
+
+proc set_syn_in_for_sec() {local epas_new, gpas_ratio, g_pas_old
+    
+    epas_new = $1
+    gpas_ratio = $2
+    
+    e_pas = epas_new
+    g_pas_old = g_pas
+    g_pas = g_pas_old*gpas_ratio
+    
+    // print "Setting synaptic input to " , secname(), ", gpas_old=", g_pas_old, ", gpas_new=", g_pas , ", epas=" , e_pas
+}
+
+
+/****************************************************************
+
+do_sim_syn_input()
+
+Logic controlling turing synaptic input on/off.  The function returns
+1 on the call where the input is turned on and and -1 on the call
+where the input is turned off, otherwise it returns 0. The procedure
+is called on each iteration of the main loop and it uses pre-defined
+parameters and the 2 global variables (above) to determine what to do.
+Five variables should be set in the cell specific parameters file to
+control the simulated synaptic input:
+
+Note that the call to cvode.reinit is required after turning the 
+simulated synaptic input on/off as the procedure changes the state
+variables of the the passive mechanism.
+
+syn_input_del = delay before starting the input
+
+syn_input_dur = how long the input should last
+
+epas_syn_input = the reversal potential for the passive mechanism to
+use during synaptic input
+
+gpas_syn_input = the factor by which to increase the passive mechanism
+conductance during synaptic input
+
+min_dist_syn_input = the minimum distance from the soma for a dendrite
+to receive simulated synaptic input
+
+
+*/
+
+func do_sim_syn_input() {
+    
+    if (gpas_syn_input_apical==0 && gpas_syn_input_basal==0) {
+	return 0.0
+    }
+    
+    
+    soma_ref.sec { distance(0,0.5) }
+    
+    if ((t >= syn_input_del)  && (syn_in_on == 0) && (syn_in_on_time == 0)) {
+	
+	syn_in_on = 1
+	syn_in_on_time = t
+	
+	if (VERBOSE == 1) {
+	    print "***********************************************************"
+	    print "ADDING SIMULATED SYNAPTIC INPUT TO DENDRITIC SECTIONS!!!!!!"
+	    print "epas_syn_input_apical = ", epas_syn_input_apical
+	    print "gpas_syn_input_apical = ", gpas_syn_input_apical
+	    print "epas_syn_input_basal = ", epas_syn_input_basal
+	    print "gpas_syn_input_basal = ", gpas_syn_input_basal
+	    print "***********************************************************"
+	}
+	
+	// adding input to all basal sections beyond the minimum distance...
+	if (gpas_syn_input_basal!=0) {
+	    forsec basal_sections {
+		if (distance(0) > min_dist_syn_input) {
+		    set_syn_in_for_sec(epas_syn_input_basal, gpas_syn_input_basal)
+		}
+	    }
+	}
+	
+	// adding input to all apical sections beyond the minimum distance...
+	if (gpas_syn_input_apical!=0) {
+	    forsec apical_sections {
+		if (distance(0) > min_dist_syn_input) {
+		    set_syn_in_for_sec(epas_syn_input_apical, gpas_syn_input_apical)
+		}
+	    }
+	}
+	
+	
+	cvode.re_init()
+	
+	return 1.0
+	
+    } else if ((t >= syn_in_on_time+syn_input_dur) && (syn_in_on ==1)) {
+	
+	syn_in_on = 0
+	
+	if (VERBOSE == 1) {
+	    print "***************************************************************"
+	    print "REMOVING SIMULATED SYNAPTIC INPUT FROM DENDRITIC SECTIONS!!!!!!"
+	    print "***************************************************************"
+	}
+	
+	// removing input from all basal sections beyond the minimum distance...
+	if (gpas_syn_input_basal!=0) {
+	    forsec basal_sections {
+		if (distance(0) > min_dist_syn_input) {
+		    set_syn_in_for_sec(V_rest, (1/gpas_syn_input_basal))
+		}
+	    }
+	}
+	
+	// removing input from all apical sections beyond the minimum distance..
+	if (gpas_syn_input_apical!=0) {
+	    forsec apical_sections {
+		if (distance(0) > min_dist_syn_input) {
+		    set_syn_in_for_sec(V_rest, (1/gpas_syn_input_apical))
+		}
+	    }
+	}
+	
+	cvode.re_init()
+	return -1.0
+    }
+    
+    return 0.0
+}
+
+
+/****************************************************************
+
+do_sim_syn_input()
+
+Addds the time of that synaptic input is turned/on off to the
+event queue to ensure that it will take place exactly at that
+time.
+
+*/
+
+proc setup_sim_syn_input() {
+    
+    
+    if (!(gpas_syn_input_apical == 0 && gpas_syn_input_basal==0)) {
+	print "->  Adding Cvode events for synaptic input on/off, t=", syn_input_del, " & ", syn_input_del + syn_input_dur 
+	cvode.event(syn_input_del)
+	cvode.event(syn_input_del + syn_input_dur)
+    }
+}

@@ -1,0 +1,387 @@
+/****************************************************************************
+Copyright (c) California Institute of Technology, 2006 -- All Rights Reserved
+Royalty free license granted for non-profit research and educational purposes.
+******************************************************************************/
+
+/*
+
+This file contains utility procedures for loading files of code and
+opening/closing the files used for program output.  There are 5
+sections:
+
+Linux/Mac vs. Windows
+Parameter Writing Utilities
+File Loading Utilities
+Create Output Directories & Files
+Trial Number
+
+*/
+
+
+//----------------------------------------------------------------
+// LINUX/MAC VS. LINUX
+//----------------------------------------------------------------
+
+/*
+If you're using windows set this to 1.  This will control how the
+file path strings are created (see set_file_roots for details.)
+*/
+
+WINDOWS = 0
+
+//----------------------------------------------------------------
+//  PARAMETER WRITING UTILITIES
+//----------------------------------------------------------------
+
+/*
+
+These procedures create a method for storing all parameters used in
+the program.  It is based on the code of Poirazi et al. (2003) with
+only minor modification.
+
+Three files are created: the param_names_file, the param_vals_file,
+and the geometry file.  (See open_param_output_files() below.)  The
+param_names and param_vals contain a listing of all the parameter
+names and all the values respectively.  This format is suitable for
+examining in Matlab.  As a convenience, the parameter names and
+valules are also written togethers (i.e. "name = value") in the header
+of the geometry file.
+
+All parameters are defined using the procedure define_param() rather
+than with a simple setting of the variable.  When the procedure
+define_param() is called the named variable is defined (with
+execute1), and the name and value are written into the files.
+
+The procedure define_ratio_param is used to define a parameter in
+reference to another.  i.e. the Na+ density in the axon initial
+segment should be 2.5 times that in the soma.  In this case it is
+the ratio that is stored in the parameter files, while a new named
+parameter is used by the program.
+
+If you modify this code it is strongly advised that you stick to this
+sytem...
+
+*/
+
+/***************************************************
+
+write_param(param_name, param_value)
+
+ $s1 = param name
+ $s2 = param value (as string, i.e. "50")
+*/
+
+proc write_param() {
+    
+  param_names_file.printf("%s\n", $s1)
+  param_vals_file.printf("%s\n",$s2)
+  geom_file.printf("%% %20s = %s\n",$s1,$s2)
+  
+}
+
+/***************************************************
+
+define_param(param_name, param_valu7e)
+
+ $s1 = param name
+ $s2 = param value (as string, i.e. "50")
+*/
+
+proc define_param() {
+    
+  sprint(tmp_str,"%s = %s", $s1, $s2)
+  execute1(tmp_str)
+  write_param($s1,$s2)
+}
+
+
+/***************************************************
+
+define_ratio_param(new_param_name, old_param_name, ratio_name, ratio_value)
+
+ $s1 = new param name
+ $s2 = old param name
+ $s3 = ratio name
+ $s4 = ratio value (as string)
+*/
+
+proc define_ratio_param() {
+    
+    // first define the ratio variable
+    sprint(tmp_str,"%s = %s",$s3,$s4)
+    execute1(tmp_str)
+    write_param($s3,$s4)
+    
+    // next define the new parameter
+    sprint(tmp_str,"%s = %s * %s",$s1,$s2,$s3)
+    execute1(tmp_str)
+}
+
+
+
+//----------------------------------------------------------------
+//  FILE LOADING UTILITIES
+//----------------------------------------------------------------
+
+/***************************************************
+
+set_file_roots()
+
+These directories are used when loading code files, creating the
+output directory, etc.  These must reflect the actual directory
+structure.
+
+*/
+
+proc set_file_roots() {
+    
+    if (WINDOWS != 1) { 
+	
+	print "SETTING MAC/LINUX FILE PATHS!"
+	
+	src_dir         = "./hoc/src"
+	output_root_dir = "./output"
+	cell_dir        = "./cells"
+	param_dir       = "./hoc/params" 
+	
+	openfile_path_sep = "/"
+	loadfile_mkdir_path_sep = "/"
+	
+	
+    } else {
+	
+	print "SETTING WINDOWS FILE PATHS!"
+	
+	src_dir         = "hoc/src"
+	output_root_dir = "output"
+	cell_dir        = "cells" 
+	param_dir       = "hoc/params" 
+	
+	openfile_path_sep = "\\"
+	loadfile_mkdir_path_sep = "/"
+	}
+
+}
+
+/***************************************************
+
+load_params_file() 
+
+loads 2 files: one is the cell specific conductance densities and
+parameters of the simulated synaptic input.  The second is the
+"standard" parameters for the cell type - this is mainly the
+parameters for the kinetics of all ionic channels.
+
+*/
+
+proc load_params_file() {local temp_type
+    
+    // conductance densities for the specific cell...
+    print "LOADING CELL SPECIFIC MEMBRANE CONDUCTANCE DENSITIES..."
+print "param_dir = ", param_dir
+
+    sprint(tmp_str, "%s%s%s%s_params.hoc", param_dir, loadfile_mkdir_path_sep, loadfile_mkdir_path_sep, neuron_name)
+
+print "params file = ", tmp_str
+
+    load_file(tmp_str)
+	        
+    // all the params that are uniform to all cells...
+    // do this AFTER loading the cell specific params, since
+    // this file defines ratios of conductances based on values that
+    // are in the individual cell param file...
+    print "LOADING STANDARD MEMBRANE PARAMS FOR CELL TYPE:", cell_type
+    sprint(tmp_str, "%s%s%s_standard_params.hoc", param_dir, loadfile_mkdir_path_sep, cell_type)
+    load_file(tmp_str)
+    
+}
+
+/**************************************************
+
+load_code_files()
+
+This procedure loads the additional code files that are not included
+on the command line:
+
+cell_util.hoc - utilities used in setting up the cell and also
+managing the simulated synaptic input
+
+membrane_init.hoc - procedures for creating the non-uniform
+distribution of active ionic current densities
+
+current_util.hoc - procedures for creating the main program output
+i.e. the membrane currents at every time, along with details of the
+intracellular state of the simulation for selected compartments
+
+mechdesc.hoc - template used in managing the output of mechanism
+details (used by current_util.hoc)
+
+*/
+
+proc load_code_files() {
+    
+    
+    // need to open this before current util...
+    sprint(tmp_str, "%s%scell_util.hoc", src_dir, loadfile_mkdir_path_sep)
+    print "open cell util: ", tmp_str
+    load_file(tmp_str)
+    
+    sprint(tmp_str, "%s%scurrent_util.hoc", src_dir, loadfile_mkdir_path_sep)
+    print "open current util: ", tmp_str
+    load_file(tmp_str)
+    
+    sprint(tmp_str, "%s%smechdesc.hoc", src_dir, loadfile_mkdir_path_sep)
+    print "open template for mechanism description: ", tmp_str
+    load_file(tmp_str)
+    
+    sprint(tmp_str, "%s%smembrane_init.hoc", src_dir, loadfile_mkdir_path_sep)
+    print "open membrane init file: ", tmp_str
+    load_file(tmp_str)
+    
+}
+
+
+//----------------------------------------------------------------
+//  CREATE OUTPUT DIRECTORIES & FILES
+//----------------------------------------------------------------
+
+/****************************************************
+
+open_param_output_files()
+
+These are the files used for the system of storing all parameter
+names/values (described above.)
+
+Note that the parameter files and geometry files are closed
+separaetely.  (Geometry file is closed at the end of print_geom()
+in current_util.hoc.)
+
+*/
+
+proc open_param_output_files() {
+    
+    param_vals_file = new File()
+    sprint(fname,"%s%s%s_%s_param_values.dat",output_dir, openfile_path_sep,neuron_name,trial_num_name)
+    param_vals_file.wopen(fname)
+    
+    param_names_file = new File()
+    sprint(fname,"%s%s%s_%s_param_names.txt",output_dir, openfile_path_sep,neuron_name,trial_num_name)
+    param_names_file.wopen(fname)
+    
+    // also open the geometry file now because we write parameters in the header...
+    geom_file = new File()
+    sprint(fname,"%s%s%s_%s_geom.dat",output_dir, openfile_path_sep,neuron_name,trial_num_name)
+    geom_file.wopen(fname)
+}
+
+
+
+/**************************************************************
+
+make_output_directory()
+
+Creates a sub-folder in the output directory based on the neuron name
+and trial number.  An additional sub-folder 'nrn' is created for all
+the output from the NEURON simulation.  (An additional 'mat'
+sub-directory may be created for Matlab analysis results later on.)  A
+string 'output_dir' is defined for creation of the file names for all
+output file.
+
+*/
+
+
+proc make_output_directory() {local mkdir_result
+    
+    
+    sprint(tmp_str, "mkdir %s%s%s_%s", output_root_dir, loadfile_mkdir_path_sep, neuron_name, trial_num_name)
+    print "COMMAND = ", tmp_str
+    mkdir_result = system(tmp_str)
+    print "RESULT = ", mkdir_result
+    
+    sprint(tmp_str, "mkdir %s%s%s_%s%snrn", output_root_dir, loadfile_mkdir_path_sep, neuron_name, trial_num_name, loadfile_mkdir_path_sep)
+    print "COMMAND = ", tmp_str
+    mkdir_result = system(tmp_str)
+    print "RESULT = ", mkdir_result
+    
+    
+    // now set the output_dir variable to be the name of the dir we just made...
+    sprint(output_dir, "%s%s%s_%s%snrn", output_root_dir, openfile_path_sep, neuron_name, trial_num_name, openfile_path_sep)
+}
+
+
+
+proc close_param_output_files() {
+    
+    param_names_file.close()
+    param_vals_file.close()
+    
+    // but not the geometry file - closed in print_geometry.hoc
+}
+
+
+//----------------------------------------------------------------
+//  TRIAL NUMBER
+//----------------------------------------------------------------
+
+
+/**************************************************************
+
+get_trial_number()
+
+The next trial number to use is stored in a plain text file in the
+same directory as the cell file.  This procedure will load the trial
+number and increment it if the file exists.  If the file does not
+exist the trial number is set to 1 and the file is created.  Note that
+the trial number is incremented after it is used (i.e. the number
+currently in the file is used for this trial, and it is incremented
+for the next.)
+
+This procedure defines a string, trial_num_name, which is printed as a
+4 digit integer with leading zeros.  This string is what is used in
+creating output file names (which is the main purpose of the trial
+number.)
+
+*/
+
+
+proc get_trial_number() {local trial_number
+    
+    trial_number=0
+    
+    sprint(tmp_str, ".%s%s%s%s_trial_num.txt", openfile_path_sep, cell_dir, openfile_path_sep, neuron_name)
+    
+    print tmp_str
+    
+    file_result = ropen(tmp_str)
+    
+    if (file_result == 0) {
+	print "\n Starting NEW trial number: "
+	trial_number = 1
+    } else {
+	trial_number = fscan()
+    }
+    
+    print "trial number " , trial_number
+    
+    ropen()
+    
+    file_result = wopen(tmp_str)
+    
+    fprint("%d\n", trial_number+1)
+    
+    wopen()
+    
+    sprint(trial_num_name,"%04d",trial_number)
+}
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,1050 @@
+/****************************************************************************
+Copyright (c) California Institute of Technology, 2006 -- All Rights Reserved
+Royalty free license granted for non-profit research and educational purposes.
+******************************************************************************/
+
+/*
+
+This file contains the procedures which save the total membrane
+current associated with every line segment and also save complete
+internal state details for selected compartments.  The code was
+originally based on Holt and Koch (1999) but has been substantially
+revised since that time.  The file is organized into 5 sections:
+
+Global Variable Declarations
+Helper Procedures
+Details Printing
+Total Currents Printing
+Geometry Output
+Detail Section Definition
+
+IMPORTANT NOTE ABOUT TERMINOLOGY: In NEURON it is standard to refer to
+unbranched pieces of neurite as a "section" while nodes in the circuit
+model are referred to as either "compartments" or "segments".  There
+is no standard NEURON terminology for lines connecting 3D points
+(which are not particularly important for NEURON but very important
+for the Line Source Approximation of extracellular potentials).  In
+this code the approach is to refer to nodes in the circuit model as
+"compartment" only (NOT segment) and instead use "line segment" to
+refer to the lines connecting 3D points.  (the neuron variable nsegs
+of course still refers to the number of compartmentds, while it is
+n3d() which is the number of 3d points...)
+
+If you add additional membrane current types to the model you will
+have to make the necessary changes to this file.  Specifically,
+chlorine currents, shunts, synaptic currents and any other
+non-specific ionic current (other than the passive mechanism) must be
+explicitly added in the read_compartment_currents procedure.  A good
+check of whether you have done this correctly is the matlab script
+check_current_balance (in mat/neuron_util).  : The total membrane
+current of all compartments in a NEURON simulation should equal zero
+(or equal the current injection, if there is any.)  If the NEURON code
+is correct then the net membrane current should be vanishingly small
+in comparison to the somatic membrane current.  It will never be
+exactly zero due to numerical rounding errors in the simulation, but
+if the error is less than something like one 1000th of the somatic
+membrane current the error will not perturb the LSA calculation in any
+meaningful way.  (It actually should be much smaller than this: on the
+order of one 100,000th) The script simply plots the net current.  (An
+alternative approach is simply to add up all the currents from one of
+the txx.xxx.dat files in a spreadsheet.)  Adding a current injection
+does not require a change in this file - the result should be that the
+net current plotted here will now EQUAL the current injection!  In
+that case you should probably subtract the current injection from the
+net current in this script in order to assess the error.
+
+*/
+
+
+//------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------
+// GLOBAL VARIABLES
+//-------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------
+
+
+last_print = -1   // the last time at which currents were saved
+
+/* These variables read and store the various current components for
+each compartment.  See the procedure read_compartment_currents for
+more important details about these variables and their use.  */
+
+itot = 0          // the total membrane current for the compartment under consideration
+v_x = 0           // the membrane potential
+ik_comp  = 0       // the potassium component of the membrane current
+ina_comp  = 0      // the sodium component of the membrane  current
+ica_comp = 0       // the calcium component of the membrane  current
+ips_comp = 0       // the passive mechanism component of the membrane  current
+icp_comp = 0       // the capactiive  component of the membrane current
+iin_comp = 0       // axial current in
+iout_comp = 0      // axial current out
+
+
+/* a vector that is used to record the total membrane current for all
+the compartments in the current section before outputing the current
+distributed over the 3-D line segments */
+
+objref itot_comps
+itot_comps = new Vector()
+
+
+//------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------
+// HELPER FUNCTIONS
+//------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------
+
+/**********************************************************
+
+reset_tot_curr_vector()
+
+Resizes and zeros the vector itot_comps.  This will be done
+before considering each section
+
+$1 = the new size
+*/
+
+proc reset_tot_curr_vector() {local i
+    itot_comps.resize($1)
+    
+    for (i = 0; i < $1; i=i+1) {
+	itot_comps.x[i] = 0.0
+    }
+}
+
+
+/**********************************************************
+
+zero_output_vars()
+
+Initialize the variables that will store the currents data for the
+current compartment.  This will be done for each compartment.
+
+*/
+
+proc zero_output_vars() {
+    
+    itot = 0
+    v_x = 0
+    ina_comp = 0
+    ik_comp  = 0
+    ica_comp = 0
+    ips_comp = 0
+    icp_comp = 0    
+    iin_comp = 0
+    iout_comp= 0
+}
+
+
+
+/**********************************************************
+
+check_last_print()
+
+This utility is called from the main program loop to determine if it
+is time to output current.  It is used because the variable steps
+sizes during the action potential will in general be much shorter than
+the interval at which we would like to save the data about the
+currents.
+
+The variable min_tstep is defined in the standard params file for each
+cell type (i.e. ca1pyr_standard_params)
+
+*/
+
+func check_last_print() {local t_step
+        
+    t_step = t - last_print
+    
+    if (t_step < min_tstep) {
+	return 0
+    } else {
+	last_print = t
+	return 1
+    }
+    
+    
+}
+
+/***************************************************************
+
+read_compartment_currents(x)
+
+Read currents from current section into the globals, and add each one
+to itot_comp.  This is done fore sodium, potassium, calcium, capactive
+and passive currents.
+
+IMPORTANT: Chlorine and non ion-specific currents other than the
+passive mechanism are not included here!  If your model includes
+chlorine currents, synapses, shunts or any other mechanism not based
+explicitly on sodium, potassium or calcium you must modify this method
+to correctly calculate itot_comp!
+
+Note that i  * 1e-2 * area(x) converts from mA/cm^2 --> nA
+
+Also note that this is never called for x=0/1 (where there is no
+membrane current defined.)
+
+$1 = X for the current compartment
+*/
+
+proc read_compartment_currents() {
+    
+    
+    //--------------------------------------
+    // Add up different types of ion currents
+    
+    v_x = v($1)
+    
+    // all compartments have capacitve current
+    icp_comp = i_cap($1) * 1e-2 * area($1)
+    itot = icp_comp
+    
+    if (ismembrane("k_ion"))  { 
+	ik_comp  = ik($1)    * 1e-2 * area($1) 
+	itot = itot + ik_comp
+    } else {
+	ik_comp = 0
+    }
+    
+    if (ismembrane("na_ion")) { 
+	ina_comp = ina($1)   * 1e-2 * area($1) 
+	itot = itot + ina_comp
+    } else {
+	ina_comp = 0
+    }
+    
+    if (ismembrane("ca_ion")) { 
+	ica_comp = ica($1)   * 1e-2 * area($1) 
+	itot = itot + ica_comp
+    } else {
+	ica_comp = 0
+    }
+    
+    if (ismembrane("pas"))    { 
+	ips_comp = i_pas($1) * 1e-2 * area($1) 
+	itot = itot + ips_comp
+    } else {
+	ips_comp = 0
+    }
+    
+}
+
+/****************************************************************
+
+calc_axial_currents(X)
+
+Calculates the axial currents for the current compartment (printed as
+part of the details for selected compartments.)  This assumes
+read_compartment_currents has already been called.  The result is 
+saved in global variables iin_compand iout_comp.
+
+$1= X for compartment under consideration.
+
+
+*/
+
+proc calc_axial_currents() {local r_in, r_out, delta_x, prevV, nextV, prevX, nextX, itot_comp
+    
+    
+    delta_x = 1/nseg
+    prevX = $1-delta_x
+    nextX = $1+delta_x
+        
+    // This will correct because prevX, nextX calculation is only correct
+    // for interior compartments - the first compartment x=delta_x/2 and
+    // the last has 1-delta_x/2, while the spacing is delta_x
+    if (prevX < 0) {
+    	prevX = 0
+    }
+    if (nextX > 1) {
+    	nextX = 1
+    }
+    
+    // print "Calculating axial currents for ", secname(), "(nseg=" ,nseg, "): x=" , $1, ", prevX=",prevX, ", nextX=",nextX
+    
+    prevV = v(prevX)
+    nextV = v(nextX)
+    
+     // converting to ohm's here, from Mega-Ohm's
+    r_in = ri($1)*10e6
+    r_out = ri(nextX)*10e6
+    
+    // print "\t Rin = ", r_in, "Rout = ", r_out
+    
+    // convert from mV to V (*10e-3) to get Amp's
+    // and from A to nA (*10e9) = 10e6
+    iin_comp = 10e6*(prevV-v($1))/r_in
+    iout_comp = 10e6*(v($1)-nextV)/r_out
+    
+    
+    // print "\t Iin = ", iin_comp, ", Iout = ", iout_comp, ", Imemb=", itot, " **************  ERROR=", (iin_comp-iout_comp)-itot_comp 
+}
+
+
+
+
+//------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------
+// DETAILS PRINTING
+//------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------
+
+/**********************************************************************
+
+output_details()
+
+This procedure is a utility called by print_details - it actually
+prints the detailed data to the currently accessed detail file (set in
+print_details).  This is done in two parts: first printing all the
+global current variables that were setup in read_compartment_currents;
+second looping over all the MechDesc objects and having each one print
+(they were previously initialized to the current compartment in
+print_details, below) "detail_file" is a global reference declared in
+refs.hoc
+
+*/
+
+
+proc output_details() {local num_mechs, pt_ratio
+    
+    
+    detail_file.printf("%10.5g %10.5g %10.5g %10.5g %10.5g %10.5g %10.5g %10.5g %10.5g %10.5g ", \
+           t, itot, v_x, icp_comp, ik_comp, ina_comp, ica_comp, ips_comp, iin_comp, iout_comp) 	
+	   
+	   
+    num_mechs = all_mechs_list.count()	   
+	   
+    for (i = 0; i < num_mechs; i=i+1) {
+	tmp_ref = all_mechs_list.object(i)
+	tmp_ref.output_mech_state(detail_file)
+    }
+    
+    detail_file.printf("\n")
+    
+}
+
+
+/**********************************************************************
+
+print_details()
+
+Main routine for detail printing.  Loops over the list of detail
+compartments (defined below in the details printing setup.)  This is
+stored as a section list with a list of X values (compartments)
+associated with each section.  For each such compartment a file is
+already opened and the reference detail_file is set to the file for
+the appropriate compartment.  The methods read_compartment_currents
+and calc_axial_currents are called to initialize the current variables
+that will be output, and the MechDesc for each type of mechanism is
+also initialized for the currently access section and compartment.  
+Lastly, the procedure output_details (above) is called to print
+the data to a file.
+
+*/
+
+
+proc print_details() {local m, n, x, i,j
+    
+    // index of the section
+    m = 0
+    
+    // index of the file (for each compartment)
+    n = 0
+    
+    
+    forsec detail_sections {
+	
+	sectionname(sname)		// Get the name of this section.
+	
+	detail_sec_comps = detail_compartments.object(m)
+	
+	for i = 0, detail_sec_comps.size()-1 {
+	    x = detail_sec_comps.x[i]
+	    
+	    detail_file = detail_files.object(n)
+	    
+	    
+	    // print "DEBUG DETAIL PRINT: ", sname, "(",x,") file=", detail_file.getname()
+	    
+	    read_compartment_currents(x)
+	    calc_axial_currents(x)
+	    
+	    for (j = 0; j <  all_mechs_list.count() ; j=j+1) {
+		tmp_ref = all_mechs_list.object(j)
+		tmp_ref.read_gate_states(x)
+	    }
+	    
+	    output_details()
+	    
+	    n=n+1
+	}
+	
+	m=m+1
+    }
+    
+}
+
+
+
+
+
+
+
+
+/***************************************************************
+
+print_current_types()
+
+Print the types of currents and the order.  This (in combination with
+the MechDesc output) allows Matlab or other outside programs to
+interpret the detailed compartment data.  This must be changed if the
+content or order of the detailed printout is changed.
+
+*/
+
+proc print_current_types() {
+    
+    sprint(tmp_str, "%s/%s_%s_curr_types.txt", output_dir,neuron_name,trial_num_name)
+    wopen(tmp_str)
+    
+    fprint("I_tot\n")
+    fprint("V\n")
+    fprint("I_cap\n")
+    fprint("I_k\n")
+    fprint("I_na\n")
+    fprint("I_ca\n")
+    fprint("I_pas\n")
+    fprint("I_in\n")
+    fprint("I_out\n")
+    
+    wopen()
+}
+
+
+//-----------------------------------------------------------------------
+//------------------------------------------------------------------------------------
+// TOTAL CURRENTS PRINTING
+//------------------------------------------------------------------------------------
+//-----------------------------------------------------------------------
+
+
+
+/************************************************************
+
+print_currents()
+
+This is the main procedure for saving the total currents associated at
+each step in time for which the program is saving.  The main task here
+is that for each section the total current is obtained from the
+compartments but it must then be divided up over the 3D line segments.
+
+The total current for each compartment is determined by the call to
+read_compartment_currents and the result (in the global variable itot)
+is transferred to the itot_comps vector (whose length has been reset
+to the number of compartments for the current section.)  
+
+The method for dividing the current is compare the fraction of the
+section covered by each line segment (as determined by arcloc's) with
+the fractions covered by each compartment (as determined by x's).
+This is performed by a sequence of if (...) statements which cover all
+the possibile relationships: the line is completely contained in the
+compartment, the compartment is completely contained by the line, the
+line starts before the compartment and ends within the compartment,
+and the line starts within the compartment and ends after it.  In all
+cases it is the appropriate ratio of the arcloc's of the line segments
+and the x's of the compartments which determines how much of each
+compartment's current is attributed to each line.
+
+*/
+
+proc print_currents() {local   i, line_num, arcloc, next_arcloc, line_arc_ratio, line_start_ratio, line_end_ratio,line_curr, seg_start_ratio, seg_end_ratio
+
+    
+    // -----------------------------------------
+    // Open the file for printout
+    
+    sprint(tmp_str, "%s/%s_%s_t%06.3f.dat", output_dir,neuron_name,trial_num_name, t)
+    curr_file = new File()
+    curr_file.wopen(tmp_str)
+    
+    // should have already done this in main.hoc, but it seems to get confused so do it again
+    soma_ref.sec { distance(0,0.5) }
+    
+    // -----------------------------------------
+    // Loop over all  sections
+    
+    forall {		
+	
+	sectionname(sname)		// Get the name of this section.
+	
+	// -----------------------------------------
+	// Look at each compartment and get the total membrane current
+	
+	reset_tot_curr_vector(nseg)
+	i = 0
+	
+	for (x) {
+	    
+	    if (x==0 || x ==1) {
+		continue
+	    }
+	    
+	    zero_output_vars()
+	    read_compartment_currents(x)
+	    
+	    itot_comps.x[i] = itot
+	    i = i+1
+	}
+	
+	// -----------------------------------------
+	// For each line segment, determine which compartments are covered
+	
+	for(line_num =1; line_num < n3d(); line_num = line_num+1) {
+	    
+    	    arcloc = arc3d(line_num-1)
+    	    next_arcloc = arc3d(line_num)
+	    
+	    // skip any duplicated 3D points
+	    if (arcloc == next_arcloc) {
+		continue
+	    }
+	    
+	    line_arc_ratio = (next_arcloc-arcloc)/L
+	    line_start_ratio = arcloc/L
+	    line_end_ratio = line_start_ratio +  line_arc_ratio
+	    line_curr = 0
+	    
+	    // -----------------------------------------
+	    // sum contributions from different compartments
+	    
+	    for (i = 0; i < nseg; i = i+1) {
+		
+		seg_start_ratio = i/nseg
+		seg_end_ratio = (i+1)/nseg
+		seg_ratio = 1/nseg
+		
+		//(these 4 'if' statements are meant to be mutually exclusive, but hoc
+		// does not seem to support  'if (...)... else if (...) else if (...)...'
+		
+		// this line is totally in this compartment
+		if (line_start_ratio > seg_start_ratio && line_end_ratio < seg_end_ratio) {
+		    
+		    part_ratio =  (line_arc_ratio/seg_ratio)
+		    seg_line_curr = itot_comps.x[i] * part_ratio
+		    line_curr = line_curr + seg_line_curr
+		}
+		
+		// this line starts and ends in two outside compartments
+		if (line_start_ratio <= seg_start_ratio && line_end_ratio >= seg_end_ratio) {
+		    
+		    // this line gets all the current from this compartment
+		    part_ratio = 1.0
+		    seg_line_curr = itot_comps.x[i]
+		    line_curr = line_curr + seg_line_curr
+		}
+		
+		// this line starts in this compartment and ends in another
+		if (line_start_ratio > seg_start_ratio && line_end_ratio >= seg_end_ratio && line_start_ratio < seg_end_ratio) {
+		    
+		    part_ratio =  ((seg_end_ratio - line_start_ratio) /seg_ratio)
+		    seg_line_curr = itot_comps.x[i] * part_ratio
+		    line_curr = line_curr + seg_line_curr
+		}
+		
+		// this line starts in another compartment and ends in this one
+		if (line_start_ratio <= seg_start_ratio && line_end_ratio < seg_end_ratio && line_end_ratio > seg_start_ratio) {
+		    
+		    part_ratio = ( (line_end_ratio - seg_start_ratio)/ seg_ratio)
+		    seg_line_curr = itot_comps.x[i] * part_ratio
+		    line_curr = line_curr + seg_line_curr
+		}
+		
+	    }
+	    curr_file.printf("%10.5g\n", line_curr)
+	}
+    }    
+    curr_file.close()
+}
+
+
+
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+// SAVING OUTPUT TIMES
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+
+/*************************************************************
+
+setup_times_print()
+
+Create the output file that will hold the times.  Called from the main
+program (main.hoc)
+
+*/
+
+
+
+proc setup_times_print() {
+    
+    sprint(tmp_str, "%s/%s_%s_times.dat", output_dir,neuron_name,trial_num_name)
+    
+    times_file = new File()
+    times_file.wopen(tmp_str)
+}
+
+
+/*************************************************************
+
+print_time()
+
+Write the current time to the times file.  Called from the main
+program (main.hoc)
+
+*/
+
+proc print_time() {
+    
+    times_file.printf("%06.3f\n", t)
+}
+
+
+/*************************************************************
+
+cleanup_times_print()
+
+Close the file for the output times.
+
+*/
+
+proc cleanup_times_print() {
+    times_file.close()
+}
+
+
+
+
+
+
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+// GEOMETRY OUTPUT
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+
+
+/*********************************************************
+
+print_geom()
+
+Prints the geometry data for the entire cell to the file geom_file, a
+global reference defined in refs.hoc.  The geom_file is actually
+opened in file_util.hoc.  The geometry data consists of every line
+segment defined by adjacent pairs of 3-D points.  Note that the ordering
+of the output is determined simply by the "forall" loop which is assumed
+to be consistent.
+
+*/
+
+proc print_geom() {local xloc, yloc, zloc, diamloc, arcloc, next_xloc, next_yloc, next_zloc, next_diamloc, next_arcloc, line_num
+    
+    forall {			
+    	
+	sectionname(sname)		// Get the name of this section.
+		
+	for(line_num =1; line_num < n3d(); line_num = line_num+1) {
+	    
+	    xloc = x3d(line_num-1)   
+	    yloc = y3d(line_num-1)   
+	    zloc = z3d(line_num-1)  
+	    diamloc = diam3d(line_num-1)
+    	    arcloc = arc3d(line_num-1)
+	    
+	    next_xloc = x3d(line_num)   
+	    next_yloc = y3d(line_num)   
+	    next_zloc = z3d(line_num)  
+	    next_diamloc = diam3d(line_num)
+    	    next_arcloc = arc3d(line_num)
+	    
+	    // skip any duplicated 3D points
+	    if (arcloc == next_arcloc) {
+		continue
+	    }
+	    
+	    geom_file.printf("%10g %10g %10g %10g %10g    %10g %10g %10g %10g %10g  %% %s\n", \
+	                        xloc, yloc, zloc, diamloc, arcloc, \
+	                        next_xloc, next_yloc, next_zloc, next_diamloc, next_arcloc,  \
+	                        sname)
+	}
+	
+    }
+    
+    geom_file.close()
+}
+
+
+
+
+/************************************************************
+
+print_sec_names()
+
+Output the section names to a file.
+
+*/
+
+proc print_sec_names() {
+    
+    sprint(fname,"%s/%s_%s_secnames.txt",output_dir,neuron_name,trial_num_name)
+    wopen(fname)
+    
+    forall {			
+    	
+	sectionname(sname)		// Get the name of this section.
+	fprint("%s\n", sname)
+	
+    }
+    
+    wopen()
+    
+}
+
+
+/************************************************************
+
+print_sec_num_pts()
+
+Write the number of 3D points associated with each section 
+and the first 3D point for each section.  This way the geometry
+and current data (based on line segments between 3D points) can
+be associated back to the section structure of cell.
+
+*/
+
+proc print_sec_num_pts() {local first_line, num_lines
+    
+    sprint(fname,"%s/%s_%s_secnums.dat",output_dir,neuron_name,trial_num_name)
+    
+    wopen(fname)
+    
+    first_line = 1
+    
+    forall {			
+	
+	num_lines = 0
+	
+	for(line_num =1; line_num < n3d(); line_num = line_num+1) {
+	    
+    	    arcloc = arc3d(line_num-1)
+    	    next_arcloc = arc3d(line_num)
+	    
+	    // skip any duplicated 3D points
+	    if (arcloc == next_arcloc) {
+		continue
+	    }
+	    
+	    num_lines = num_lines +1
+	}
+	
+	fprint("%d\t%d\n", first_line, num_lines)
+	first_line = first_line + num_lines
+			    
+    }
+    
+    wopen()
+    
+}
+
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+// SETUP DETAIL SECTIONS
+//-----------------------------------------------------------------------
+//-----------------------------------------------------------------------
+
+
+/************************************************************
+
+d151_add_detail_sections()
+
+Cell specific procedure to populate the detail_sections and
+detail_compartments lists.
+
+detail_sections - list of all the sections for which one or more
+compartment details are to be output
+
+detail_compartments - a list of Vectors.  For each section there is a
+vector of X values indicating the compartments for which details
+should be printed.  For many sections this is set to only 0.5 (the
+center compartment) but for some other sections all compartments 
+get detailed data export.
+
+*/
+
+proc default_add_detail_sections() {
+    
+    soma_ref.sec      { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    
+    if (object_id(iseg_ref) ) {
+	iseg_ref.sec {
+	    detail_sections.append() 
+	    detail_sec_comps = new Vector(1,0.5)
+	    detail_compartments.append(detail_sec_comps)
+	}
+    }
+}
+    
+proc d151_add_detail_sections() {local x
+    
+    // soma handled in default
+    
+    //------------------
+    // axon
+    
+    iseg      { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    hill      { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    
+    myelin_01 { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    node_01   { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    node_05   { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    //--------------------
+    // proximal apical
+    
+    apical1_0    { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    apical1_02    { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    apical1_0222    { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+	
+    }
+    
+    apical1_02222    { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    //------------------
+    // distal apical
+    
+    apical1_02222211    { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    apical1_02222211111   { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    apical1_0222221111111   { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    apical1_022222111111111   { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    apical1_02222211111111111   { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    //--------------------
+    // basal
+    
+    basal4_02    { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    basal4_0211    { 
+	detail_sections.append() 
+	detail_sec_comps = new Vector(1,0.5)
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+    // including all compartments for a section
+    basal4_02112   {
+	detail_sections.append() 
+	detail_sec_comps = new Vector()
+	for (x) {
+	    if (x==0 || x==1) {
+		continue
+	    }
+	    detail_sec_comps.append(x)
+	}
+	detail_compartments.append(detail_sec_comps)
+    }
+    
+}
+
+/************************************************************
+
+line_add_detail_sections()
+
+For the single cylinder neuron we want to write out all 101 sections
+in order to calculate voltage gradients.  This isn't very efficient,
+because most of the detail data will not be very interesting and all
+we care about is the voltage.  But the way the code is structured this
+is the only way to go without making some special exception for this
+case...
+
+*/
+
+proc line_add_detail_sections() {local x
+    
+    forall {
+	
+	// handled in default
+	if (issection("soma")) {
+	    continue
+	}
+	
+	detail_sections.append() 
+	detail_sec_comps = new Vector()
+	for (x) {
+	    if (x==0 || x==1) {
+		continue
+	    }
+	    detail_sec_comps.append(x)
+	}
+	detail_compartments.append(detail_sec_comps)
+    }
+}
+
+
+
+/************************************************************
+
+setup_detail_print()
+
+Master routine for setting up the output of compartment details.
+
+detail_sections - list of all the sections for which one or more
+compartment details are to be output
+
+detail_compartments - a list of Vectors.  For each section there is a
+vector of X values indicating the compartments for which details
+should be printed.
+
+detail_files - A list of files.  One file is created for each
+compartment.  The file name is section_x.dat
+
+The addition of sections and compartments to the detail_sections and
+detail_compartments lists is handled in cell specific sub-routines.
+ The compartments for which details should be printed must be added
+explicitly by name and number.  The method d151_add_detail_sections
+(above) is an example.  To define detail output compartments for
+another cell you must: 1) define a new procedure along the lines of
+d151_add_detail_sections with the specifics of which compartments to
+export the details; 2) Add a new "if" statement in setup_detail_print
+to select the correct procedure based on the neuron_name variable.
+
+*/
+
+proc setup_detail_print() {local x, n, i
+    
+    detail_sections = new SectionList()
+    detail_files = new List()
+    detail_compartments = new List()
+    
+    default_add_detail_sections()
+    
+    if (strcmp(neuron_name,"d151")==0) {
+	d151_add_detail_sections()
+    } 
+    
+    if (strcmp(neuron_name,"line")==0) {
+	line_add_detail_sections()
+    } 
+    
+    n=0
+    
+    forsec detail_sections {
+	
+	// print "n=", n , " detail_compartments.size()=", detail_compartments.count()
+	detail_sec_comps = detail_compartments.object(n)
+	
+	for i = 0, detail_sec_comps.size()-1 {
+	    x = detail_sec_comps.x[i]
+	    sprint(tmp_str, "%s/%s_%s_%s_%.2f.dat", output_dir,neuron_name,trial_num_name, secname(),x)
+	    // print tmp_str
+	    
+	    detail_file = new File()
+	    detail_file.wopen(tmp_str)
+	    detail_files.append(detail_file)
+	}
+	
+	n=n+1
+    }
+    
+}
+
+/************************************************************
+
+cleanup_detail_print()
+
+Closes all the files opened for compartment details in
+setup_details_print.
+
+*/
+
+proc cleanup_detail_print() {local i
+    
+    
+    for (i=0; i < detail_files.count(); i=i+1) {
+	detail_file = detail_files.object(i)
+	detail_file.close()
+    }
+    
+}

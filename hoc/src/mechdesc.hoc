@@ -1,0 +1,500 @@
+/****************************************************************************
+Copyright (c) California Institute of Technology, 2006 -- All Rights Reserved
+Royalty free license granted for non-profit research and educational purposes.
+******************************************************************************/
+
+
+/*
+
+The Mechanism Descrition template (MechDesc) is a utility that
+describes an NMODL mechanism and performs the function of querying the
+currently accessed section for its state and writing them to a file.
+This is used to record the details for selected compartments.  The
+advantage of this approach is that if the mechanisms in the model
+change only the created MechDesc objects need to be updated and the
+code for saving compartment details still functions.
+
+The MechDesc reads two types of information from a mechanism.  The
+first is the gating variables and the "gbar" that are standard in
+Hodgkin-Huxley style voltage dependent ionic channels.  The second
+type of information that can be read are array variables in mechanism.
+This is useful for mechanisms like the Ca buffering mechanism cadifus
+where there are no gate parts or gbar but rather arrays of states we
+are interested in.
+
+See make_mechanism_list in membrane_init.hoc for the actual setup up
+of the MechDesc's used in the current program, and print_details and
+output_details in current_util.hoc for their use.
+
+The file is organized into sections:
+
+Template Declaratin
+Setup Functions
+Reading Section State
+Output Section State
+
+*/
+
+
+/*******************************************************************
+
+String
+
+A list-able string used by MechDesc
+
+*/
+
+begintemplate String
+
+public s
+strdef s
+
+proc init() {
+    s = $s1
+}   
+
+endtemplate String
+
+
+
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+// MECHDESC
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+
+begintemplate MechDesc
+
+// Creation Utilities
+public self_define
+public add_gate_part
+public add_array_var
+
+// The main function
+public read_gate_states
+
+// Output utilities
+public output_names
+public output_mech_state
+public print_gate_state
+public print_mech_desc
+
+// these must be public to set via execute1
+public state, gbar
+
+strdef name, ion, conductance, tmp_str
+objref gate_part_names
+objref gate_part_powers
+objref gate_part_states
+
+objref array_var_names
+objref array_var_sizes
+objref array_var_states
+
+objref file_pointer
+objref this
+
+gbar = 0
+theg = 0
+num_gate_parts = 0
+num_array_vars = 0
+state = 0
+
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+// SETUP
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+
+
+/*************************************************
+
+init(name, ion, conductance)
+
+Initialize with only the most basic information - more info is entered
+with the functions add_gate_part and add_array_var
+
+$s1 = name of the mechanism
+$s2 = ion type
+$s3 = conductance name
+*/
+
+proc init() {
+    
+    name = $s1
+    ion = $s2
+    conductance = $s3
+    
+    gate_part_names = new List()
+    gate_part_powers = new Vector()
+    gate_part_states = new Vector()
+    
+    array_var_names = new List()
+    array_var_sizes = new Vector()
+    array_var_states = new Vector()
+    
+    
+}
+
+/**************************************************
+self_define(this)
+
+$o1 is reference to this object itself.  Apparently hoc templates need
+are "this" challenged and require help in order to know themselvs...
+
+(copied from Poirazi & Brannon code, Poirazi et al. 2003)
+
+*/
+
+proc self_define() {
+  this = $o1
+}
+
+/***********************************************
+
+add_gate_part(name, power)
+
+Tell the MechDesc the name (i.e. letter designation) and the exponent
+associated with one of the gate parts for this mechanism.
+
+$s1 = name
+$2 = power in conductance
+
+*/
+
+proc add_gate_part() {
+    
+    gate_part_names.append(new String($s1))
+    gate_part_powers.append($2)
+    gate_part_states.append(0)
+    num_gate_parts += 1    
+}
+
+
+/********************************************************************
+add_array_var(name, size)
+
+add an array state
+$s1 = name
+$2 = size of array
+*/
+
+proc add_array_var() {local n
+    
+    array_var_names.append(new String($s1))
+    array_var_sizes.append($2)
+    
+    for (n=0; n < $2; n+=1) {
+	array_var_states.append(0)
+    }
+    
+    num_array_vars += 1
+    
+}
+
+/********************************************************************
+output_names(file)
+
+Write out the full names of all the mechanism variables that will be
+reported by this MechDesc
+
+$o1 = file pointer
+*/
+
+proc output_names() {local i,j
+    
+    file_pointer = $o1
+    
+    for (i=0; i < num_gate_parts; i+=1) {
+	file_pointer.printf("%s_%s\n", name, gate_part_names.object(i).s)
+    }
+    
+    
+    for (i=0; i < num_array_vars; i+=1) {
+	for (j=0; j < array_var_sizes.x[i]; j+=1) {
+	    file_pointer.printf("%s_%s_%d\n", name, array_var_names.object(i).s, j)
+	}
+    }
+    
+    if (strcmp(conductance,"")!=0) {
+	file_pointer.printf("%s_g\n", name)
+    }
+}
+
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+// READING SECTION STATE
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+
+
+/******************************************************
+
+private get_gate_state(part_num, x)
+
+Using execute1 on a string constructed from the part name, read the
+state of one gate variable into the gate_part_states vector (the
+variable 'state' is used temporarily for the execute1 statement)
+
+$1 = gate_part_num to read
+$2 = x 
+*/
+
+proc get_gate_state() {local part_num, thex, result
+    
+    part_num = $1
+    thex = $2
+    result = 0
+    
+    // print "\t getting state for ", name, " , " , gate_part_names.object(part_num).s
+
+    sprint(tmp_str, "%s.state=%s_%s(%f)",this, gate_part_names.object(part_num).s, name, thex)
+    
+    result = execute1(tmp_str)
+    // result = 0
+    
+    if (result != 1) {
+	print "BAD EXECUTE RESULT for State ", gate_part_names.object(part_num).s , "in ", name
+	gate_part_states.x[part_num] = 0
+    }  else {
+	gate_part_states.x[part_num] = state
+    }
+    
+}
+
+/******************************************************
+
+private get_array_var(var_num, x)
+
+Using execute1 on a string constructed from the part name, read the
+state of one array variable into the array_var_states vector.
+
+$1 = array_var_num to read
+$2 = x 
+*/
+
+proc get_array_var() {local part_num, thex, result, start_index, i
+    
+    var_num = $1
+    thex = $2
+    result = 0
+    start_index = 0
+    
+    for(i =0; i < var_num; i+=1) {
+	start_index = start_index + array_var_sizes.x[var_num]
+    }
+    
+    // print "\t Reading array state, start index = ", start_index
+    // print "\t\t test = ", ca_cadifpmp[0](0.5)
+    
+    for (i = 0; i < array_var_sizes.x[var_num]; i+=1) {
+	
+	sprint(tmp_str, "%s.state=%s_%s[%d](%f)",this, array_var_names.object(var_num).s, name, i, thex)
+	result = execute1(tmp_str)
+	// result = 0
+	
+	if (result != 1) {
+	    print "BAD EXECUTE RESULT for State ", array_var_names.object(var_num).s , "in ", name
+	    array_var_states.x[start_index + i] = 0
+	}  else {
+	    array_var_states.x[start_index + i] = state
+	}
+	
+    }    
+}
+
+
+/*******************************************************
+public read_gate_states
+
+read all the gate parts for the current section into the
+gate_part_states vector, also calculate the conductance based on the
+gate parts and associated exponents.  The function loops over the gate
+parts and array variables, calling get_gate_state and get_array_var
+(above).  If this section does not have the mechanism described by 
+this MechDesc it simply zero's out the results.
+
+$1 = x position in current section
+*/
+
+proc read_gate_states() {local thex, i, j, start_index
+    
+    thex = $1
+    
+    if (ismembrane(name)) {
+	
+	for (i=0; i < num_gate_parts; i+=1) {
+	    get_gate_state(i,thex)
+	}
+	
+	if (strcmp(conductance,"")!=0) {
+	    calculate_g(thex)
+	} else {
+	    gbar = 0
+	    theg = 0
+	}
+	
+	for (i=0; i < num_array_vars; i+=1) {
+	    get_array_var(i,thex)
+	}
+	
+	
+    } else {
+	
+	for (i=0; i < num_gate_parts; i+=1) {
+	    gate_part_states.x[i] = 0
+	}
+	
+	start_index = 0
+	for (i=0; i < num_array_vars; i+=1) {
+	    for (j=0; j < array_var_sizes.x[i]; j+=1) {
+		array_var_states.x[start_index+j]=0
+	    }
+	    start_index += array_var_sizes.x[i]
+	}
+	
+	gbar = 0
+	theg = 0
+    }
+}
+
+
+
+
+
+/************************************************************
+
+private calculate_g(x)
+
+Calculate conductance by reading gbar for the current section
+and then applying each gate part to the indiated power.
+
+$1 = x
+*/
+
+proc calculate_g() {local j, total_act, thex, result
+    
+    thex = $1
+    
+    total_act = 1
+    gbar = 0
+    
+    sprint(tmp_str, "%s.gbar = %s_%s(%f)",this, conductance, name, thex)
+    
+    result = execute1(tmp_str)
+    // result = 0
+    
+    
+    if (result != 1) {
+	print "BAD EXECUTE RESULT for Conductance ", conductance, " in ", name
+	theg = 0
+	return 
+    }
+    
+    for (i=0; i < num_gate_parts; i+=1) {
+	
+	for (j=0; j < gate_part_powers.x[i]; j+=1) {
+	    total_act = total_act * gate_part_states.x[i]
+	}
+	
+	theg = total_act * gbar
+    }
+    
+}
+
+
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+// OUTPUT
+//---------------------------------------------------------------------------
+//---------------------------------------------------------------------------
+
+
+
+/*******************************************************
+public print_mech_desc()
+
+Describe MechDesc setup to screen.
+
+*/
+
+proc print_mech_desc() {local i
+    print "Mechanism : ", name , " ( " , conductance , " )"
+    
+    for (i = 0; i < num_gate_parts; i+=1) {
+	print "\t", gate_part_names.object(i).s , "^" , gate_part_powers.x[i]
+    }
+    
+    for (i = 0; i < num_array_vars; i+=1) {
+	for (j=0; j < array_var_sizes.x[i]; j+=1) {
+	    print "\t", array_var_names.object(i).s , "[" , j, "]"
+	}
+    }
+}
+
+
+/*******************************************************
+public output_mech_state(file)
+
+write mechanism state for current section to file
+
+$o1 = file
+*/
+
+proc output_mech_state() {local i, start_index
+    
+    file_pointer=$o1
+    
+    for (i=0; i < num_gate_parts; i+=1) {
+	file_pointer.printf(" %10.5g ",gate_part_states.x[i])
+    }
+    
+    start_index=0
+    
+    for (i=0; i < num_array_vars; i+=1) {
+	
+	for (j=0; j < array_var_sizes.x[i]; j+=1) {
+	    file_pointer.printf(" %10.5g ",array_var_states.x[start_index+j])
+	}
+	
+	start_index += array_var_sizes.x[i]
+    }
+    
+    if (strcmp(conductance,"")!=0) {
+	file_pointer.printf(" %10.5g ", theg)
+    }   
+    
+}
+
+
+/*******************************************************
+public print_mech_state()
+
+Print mechanism state for current section to the screen.  Useful for
+debugging, but not currently used in the program.
+
+*/
+
+proc print_mech_state() {local i, start_index
+    
+    for (i=0; i < num_gate_parts; i+=1) {
+	print "\t" , gate_part_names.object(i).s, " = ", gate_part_states.x[i]
+    }
+    
+    start_index = 0
+    
+    for (i=0; i < num_array_vars; i+=1) {
+	
+	for (j=0; j < array_var_sizes.x[i]; j+=1) {
+	    print "\t",array_var_names.object(i).s,"[",j,"]=" ,array_var_states.x[start_index+j]
+	}
+	
+	start_index += array_var_sizes.x[i]
+    }
+    
+    if (strcmp(conductance,"")!=0) {
+	print "\tG=", theg
+    }
+}
+
+endtemplate MechDesc

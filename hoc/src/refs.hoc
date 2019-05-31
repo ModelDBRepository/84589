@@ -1,0 +1,54 @@
+/****************************************************************************
+Copyright (c) California Institute of Technology, 2006 -- All Rights Reserved
+Royalty free license granted for non-profit research and educational purposes.
+******************************************************************************/
+
+/*
+
+This file declares all the object and string references used in 
+multiple files of the program.
+
+*/
+
+// temporary references...
+objref tmp_ref
+strdef tmp_str
+
+// global cvode
+objref cvode
+
+
+// used to make lists of different types of sections
+objref   basal_sections, apical_sections
+objref   soma_ref, iseg_ref, hill_ref
+objref   ax_sections, my_sections, node_sections
+objref trunk_sections, oblique_sections, tuft_sections
+
+// describing the cell and channels used
+strdef neuron_name
+strdef cell_type
+
+
+// section name / file name/ output dir name / session name 
+strdef sname, fname, output_dir, trial_num_name
+
+strdef loadfile_mkdir_path_sep, openfile_path_sep
+
+// output files
+objref param_names_file, param_vals_file, geom_file, mech_desc_file, curr_file, times_file
+
+// root dirs for loading files
+strdef src_dir, output_root_dir, cell_dir, param_dir
+
+// for printing out mechanism details
+objref all_mechs_list
+
+// sections for which to print mechanism details
+objref detail_sections      // section list
+objref detail_compartments  // list of vectors
+objref detail_sec_comps     // a pointer to a vector
+objref detail_files
+objref detail_file
+
+
+

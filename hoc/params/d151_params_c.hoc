@@ -1,0 +1,74 @@
+/****************************************************************************
+Copyright (c) California Institute of Technology, 2006 -- All Rights Reserved
+Royalty free license granted for non-profit research and educational purposes.
+******************************************************************************/
+
+/*
+
+D151 PARAMS "C"
+
+This file defines the membrane conductance densities and synaptic input
+parameters that were varied for each cell to produce the results described
+in Gold, Henze and Koch (2007). 
+
+*/
+
+//-------------------------------------------------------------------------------
+// a little message to standard output when the file is loaded
+print "LOADING Cell Sepcific Params D151(C)!"
+
+//------------------------------------------------------------
+/* This flag (not truly a parameter) controls whether or not the main
+program loop writes a line of output at each time step. */
+VERBOSE = 1
+
+
+
+/***************************************************************
+Parameters for Ionic Current Conductance Densities (used in
+membrane_init.hoc; also referenced in ratios params defined in
+ca1pyr_standard_params.hoc) 
+*/
+ 
+
+define_param("gkk","0.002")
+define_param("gkd","0.002")
+define_param("gkm", "1e-3")
+
+define_param("gkc_soma","0.005")
+define_ratio_param("gkc_apical", "gkc_soma", "gkc_apical_soma_ratio", "0.75")
+define_ratio_param("gkc_basal", "gkc_soma", "gkc_basal_soma_ratio", "0.75")
+
+define_param("gka_prox_apical","0.05")
+define_param("gka_dist_min_apical","0.05")
+define_param("gka_oblique_factor","6")
+define_param("gka_tuft_factor","8")
+define_ratio_param("gka_dist_min_basal", "gka_dist_min_apical", "gka_dist_apical_basal_ratio", "5")
+
+define_param("gna_default","0.0325")
+define_ratio_param("gna_iseg", "gna_default", "gna_default_iseg_ratio", "4")
+define_ratio_param("gna_apical_max", "gna_default", "gna_default_max_apical_ratio", "0.90")
+define_ratio_param("gna_apical_min", "gna_default", "gna_default_min_apical_ratio", "0.70")
+define_ratio_param("gna_basal_max", "gna_default", "gna_default_max_basal_ratio", "0.90")
+define_ratio_param("gna_basal_min", "gna_default", "gna_default_min_basal_ratio", "0.70")
+
+
+
+/****************************************************************
+parameters for simulated synaptic input & current injection
+(used in cell_util.hoc)
+
+set gpas_syn_input=0 for no simulated synaptic input
+set inj_amp=0 for no electrode input
+
+*/
+
+
+define_param("gpas_syn_input_apical","3")  // set to 0 for no simulated synaptic input
+define_param("epas_syn_input_apical","-40")
+define_param("gpas_syn_input_basal","3")  // set to 0 for no simulated synaptic input
+define_param("epas_syn_input_basal","-40")
+define_param("syn_input_dur","5")
+define_param("syn_input_del","10")
+define_param("min_dist_syn_input","50")
+

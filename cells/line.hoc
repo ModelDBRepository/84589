@@ -1,0 +1,1079 @@
+
+
+neuron_name = "line"
+cell_type = "line"
+
+
+create soma
+soma {
+    pt3dclear()
+    pt3dadd(-5,  0,   0,    3)
+    pt3dadd( 5,  0,   0,    3)
+}
+
+
+create apical_01
+apical_01 {
+    pt3dclear()
+    pt3dadd( 5,  0,   0,    3)
+    pt3dadd(15,  0,   0,    3)
+}
+
+connect apical_01(0),soma(1)
+
+
+
+
+create apical_02
+apical_02 {
+    pt3dclear()
+    pt3dadd(15,  0,   0,    3)
+    pt3dadd(25,  0,   0,    3)
+}
+
+connect apical_02(0),apical_01(1)
+
+
+
+create apical_03
+apical_03 {
+    pt3dclear()
+    pt3dadd(25,  0,   0,    3)
+    pt3dadd(35,  0,   0,    3)
+}
+
+connect apical_03(0),apical_02(1)
+
+
+create apical_04
+apical_04 {
+    pt3dclear()
+    pt3dadd(35,  0,   0,    3)
+    pt3dadd(45,  0,   0,    3)
+}
+
+connect apical_04(0),apical_03(1)
+
+
+
+create apical_05
+apical_05 {
+    pt3dclear()
+    pt3dadd(45,  0,   0,    3)
+    pt3dadd(55,  0,   0,    3)
+}
+
+connect apical_05(0),apical_04(1)
+
+
+
+create apical_06
+apical_06 {
+    pt3dclear()
+    pt3dadd(55,  0,   0,    3)
+    pt3dadd(65,  0,   0,    3)
+}
+
+connect apical_06(0),apical_05(1)
+
+
+
+create apical_07
+apical_07 {
+    pt3dclear()
+    pt3dadd(65,  0,   0,    3)
+    pt3dadd(75,  0,   0,    3)
+}
+
+connect apical_07(0),apical_06(1)
+
+
+
+create apical_08
+apical_08 {
+    pt3dclear()
+    pt3dadd(75,  0,   0,    3)
+    pt3dadd(85,  0,   0,    3)
+}
+
+connect apical_08(0),apical_07(1)
+
+
+
+create apical_09
+apical_09 {
+    pt3dclear()
+    pt3dadd(85,  0,   0,    3)
+    pt3dadd(95,  0,   0,    3)
+}
+
+connect apical_09(0),apical_08(1)
+
+
+
+create apical_10
+apical_10 {
+    pt3dclear()
+    pt3dadd( 95,  0,   0,    3)
+    pt3dadd(105,  0,   0,    3)
+}
+
+connect apical_10(0),apical_09(1)
+
+
+
+create apical_11
+apical_11 {
+    pt3dclear()
+    pt3dadd(105,  0,   0,    3)
+    pt3dadd(115,  0,   0,    3)
+}
+
+connect apical_11(0),apical_10(1)
+
+
+
+create apical_12
+apical_12 {
+    pt3dclear()
+    pt3dadd(115,  0,   0,    3)
+    pt3dadd(125,  0,   0,    3)
+}
+
+connect apical_12(0),apical_11(1)
+
+
+
+create apical_13
+apical_13 {
+    pt3dclear()
+    pt3dadd(125,  0,   0,    3)
+    pt3dadd(135,  0,   0,    3)
+}
+
+connect apical_13(0),apical_12(1)
+
+
+
+create apical_14
+apical_14 {
+    pt3dclear()
+    pt3dadd(135,  0,   0,    3)
+    pt3dadd(145,  0,   0,    3)
+}
+
+connect apical_14(0),apical_13(1)
+
+
+
+create apical_15
+apical_15 {
+    pt3dclear()
+    pt3dadd(145,  0,   0,    3)
+    pt3dadd(155,  0,   0,    3)
+}
+
+connect apical_15(0),apical_14(1)
+
+
+
+create apical_16
+apical_16 {
+    pt3dclear()
+    pt3dadd(155,  0,   0,    3)
+    pt3dadd(165,  0,   0,    3)
+}
+
+connect apical_16(0),apical_15(1)
+
+
+
+create apical_17
+apical_17 {
+    pt3dclear()
+    pt3dadd(165,  0,   0,    3)
+    pt3dadd(175,  0,   0,    3)
+}
+
+connect apical_17(0),apical_16(1)
+
+
+
+create apical_18
+apical_18 {
+    pt3dclear()
+    pt3dadd(175,  0,   0,    3)
+    pt3dadd(185,  0,   0,    3)
+}
+
+connect apical_18(0),apical_17(1)
+
+
+
+create apical_19
+apical_19 {
+    pt3dclear()
+    pt3dadd(185,  0,   0,    3)
+    pt3dadd(195,  0,   0,    3)
+}
+
+connect apical_19(0),apical_18(1)
+
+
+
+create apical_20
+apical_20 {
+    pt3dclear()
+    pt3dadd(195,  0,   0,    3)
+    pt3dadd(205,  0,   0,    3)
+}
+
+connect apical_20(0),apical_19(1)
+
+
+
+create apical_21
+apical_21 {
+    pt3dclear()
+    pt3dadd(205,  0,   0,    3)
+    pt3dadd(215,  0,   0,    3)
+}
+
+connect apical_21(0),apical_20(1)
+
+
+create apical_22
+apical_22 {
+    pt3dclear()
+    pt3dadd(215,  0,   0,    3)
+    pt3dadd(225,  0,   0,    3)
+}
+
+connect apical_22(0),apical_21(1)
+
+
+create apical_23
+apical_23 {
+    pt3dclear()
+    pt3dadd(225,  0,   0,    3)
+    pt3dadd(235,  0,   0,    3)
+}
+
+connect apical_23(0),apical_22(1)
+
+
+create apical_24
+apical_24 {
+    pt3dclear()
+    pt3dadd(235,  0,   0,    3)
+    pt3dadd(245,  0,   0,    3)
+}
+
+connect apical_24(0),apical_23(1)
+
+
+create apical_25
+apical_25 {
+    pt3dclear()
+    pt3dadd(245,  0,   0,    3)
+    pt3dadd(255,  0,   0,    3)
+}
+
+connect apical_25(0),apical_24(1)
+
+/**********************************************************************/
+
+create apical_26
+apical_26 {
+    pt3dclear()
+    pt3dadd(255,  0,   0,    3)
+    pt3dadd(265,  0,   0,    3)
+}
+
+connect apical_26(0),apical_25(1)
+
+
+create apical_27
+apical_27 {
+    pt3dclear()
+    pt3dadd(265,  0,   0,    3)
+    pt3dadd(275,  0,   0,    3)
+}
+
+connect apical_27(0),apical_26(1)
+
+
+create apical_28
+apical_28 {
+    pt3dclear()
+    pt3dadd(275,  0,   0,    3)
+    pt3dadd(285,  0,   0,    3)
+}
+
+connect apical_28(0),apical_27(1)
+
+
+create apical_29
+apical_29 {
+    pt3dclear()
+    pt3dadd(285,  0,   0,    3)
+    pt3dadd(295,  0,   0,    3)
+}
+
+connect apical_29(0),apical_28(1)
+
+
+
+create apical_30
+apical_30 {
+    pt3dclear()
+    pt3dadd(295,  0,   0,    3)
+    pt3dadd(305,  0,   0,    3)
+}
+
+connect apical_30(0),apical_29(1)
+
+
+
+
+create apical_31
+apical_31 {
+    pt3dclear()
+    pt3dadd(305,  0,   0,    3)
+    pt3dadd(315,  0,   0,    3)
+}
+
+connect apical_31(0),apical_30(1)
+
+
+create apical_32
+apical_32 {
+    pt3dclear()
+    pt3dadd(315,  0,   0,    3)
+    pt3dadd(325,  0,   0,    3)
+}
+
+connect apical_32(0),apical_31(1)
+
+
+create apical_33
+apical_33 {
+    pt3dclear()
+    pt3dadd(325,  0,   0,    3)
+    pt3dadd(335,  0,   0,    3)
+}
+
+connect apical_33(0),apical_32(1)
+
+
+create apical_34
+apical_34 {
+    pt3dclear()
+    pt3dadd(335,  0,   0,    3)
+    pt3dadd(345,  0,   0,    3)
+}
+
+connect apical_34(0),apical_33(1)
+
+
+create apical_35
+apical_35 {
+    pt3dclear()
+    pt3dadd(345,  0,   0,    3)
+    pt3dadd(355,  0,   0,    3)
+}
+
+connect apical_35(0),apical_34(1)
+
+
+create apical_36
+apical_36 {
+    pt3dclear()
+    pt3dadd(355,  0,   0,    3)
+    pt3dadd(365,  0,   0,    3)
+}
+
+connect apical_36(0),apical_35(1)
+
+
+create apical_37
+apical_37 {
+    pt3dclear()
+    pt3dadd(365,  0,   0,    3)
+    pt3dadd(375,  0,   0,    3)
+}
+
+connect apical_37(0),apical_36(1)
+
+
+create apical_38
+apical_38 {
+    pt3dclear()
+    pt3dadd(375,  0,   0,    3)
+    pt3dadd(385,  0,   0,    3)
+}
+
+connect apical_38(0),apical_37(1)
+
+
+create apical_39
+apical_39 {
+    pt3dclear()
+    pt3dadd(385,  0,   0,    3)
+    pt3dadd(395,  0,   0,    3)
+}
+
+connect apical_39(0),apical_38(1)
+
+
+
+create apical_40
+apical_40 {
+    pt3dclear()
+    pt3dadd(395,  0,   0,    3)
+    pt3dadd(405,  0,   0,    3)
+}
+
+connect apical_40(0),apical_39(1)
+
+
+create apical_41
+apical_41 {
+    pt3dclear()
+    pt3dadd(405,  0,   0,    3)
+    pt3dadd(415,  0,   0,    3)
+}
+
+connect apical_41(0),apical_40(1)
+
+
+create apical_42
+apical_42 {
+    pt3dclear()
+    pt3dadd(415,  0,   0,    3)
+    pt3dadd(425,  0,   0,    3)
+}
+
+connect apical_42(0),apical_41(1)
+
+
+create apical_43
+apical_43 {
+    pt3dclear()
+    pt3dadd(425,  0,   0,    3)
+    pt3dadd(435,  0,   0,    3)
+}
+
+connect apical_43(0),apical_42(1)
+
+
+create apical_44
+apical_44 {
+    pt3dclear()
+    pt3dadd(435,  0,   0,    3)
+    pt3dadd(445,  0,   0,    3)
+}
+
+connect apical_44(0),apical_43(1)
+
+
+create apical_45
+apical_45 {
+    pt3dclear()
+    pt3dadd(445,  0,   0,    3)
+    pt3dadd(455,  0,   0,    3)
+}
+
+connect apical_45(0),apical_44(1)
+
+
+create apical_46
+apical_46 {
+    pt3dclear()
+    pt3dadd(455,  0,   0,    3)
+    pt3dadd(465,  0,   0,    3)
+}
+
+connect apical_46(0),apical_45(1)
+
+
+create apical_47
+apical_47 {
+    pt3dclear()
+    pt3dadd(465,  0,   0,    3)
+    pt3dadd(475,  0,   0,    3)
+}
+
+connect apical_47(0),apical_46(1)
+
+
+create apical_48
+apical_48 {
+    pt3dclear()
+    pt3dadd(475,  0,   0,    3)
+    pt3dadd(485,  0,   0,    3)
+}
+
+connect apical_48(0),apical_47(1)
+
+
+create apical_49
+apical_49 {
+    pt3dclear()
+    pt3dadd(485,  0,   0,    3)
+    pt3dadd(495,  0,   0,    3)
+}
+
+connect apical_49(0),apical_48(1)
+
+
+
+create apical_50
+apical_50 {
+    pt3dclear()
+    pt3dadd(495,  0,   0,    3)
+    pt3dadd(505,  0,   0,    3)
+}
+
+connect apical_50(0),apical_49(1)
+
+
+
+/**********************************************************************/
+
+
+
+create basal_01
+basal_01 {
+    pt3dclear()
+    pt3dadd( -5,  0,   0,    3)
+    pt3dadd(-15,  0,   0,    3)
+}
+
+connect basal_01(0),soma(0)
+
+
+
+
+create basal_02
+basal_02 {
+    pt3dclear()
+    pt3dadd(-15,  0,   0,    3)
+    pt3dadd(-25,  0,   0,    3)
+}
+
+connect basal_02(0),basal_01(1)
+
+
+
+create basal_03
+basal_03 {
+    pt3dclear()
+    pt3dadd(-25,  0,   0,    3)
+    pt3dadd(-35,  0,   0,    3)
+}
+
+connect basal_03(0),basal_02(1)
+
+
+create basal_04
+basal_04 {
+    pt3dclear()
+    pt3dadd(-35,  0,   0,    3)
+    pt3dadd(-45,  0,   0,    3)
+}
+
+connect basal_04(0),basal_03(1)
+
+
+
+create basal_05
+basal_05 {
+    pt3dclear()
+    pt3dadd(-45,  0,   0,    3)
+    pt3dadd(-55,  0,   0,    3)
+}
+
+connect basal_05(0),basal_04(1)
+
+
+
+create basal_06
+basal_06 {
+    pt3dclear()
+    pt3dadd(-55,  0,   0,    3)
+    pt3dadd(-65,  0,   0,    3)
+}
+
+connect basal_06(0),basal_05(1)
+
+
+
+create basal_07
+basal_07 {
+    pt3dclear()
+    pt3dadd(-65,  0,   0,    3)
+    pt3dadd(-75,  0,   0,    3)
+}
+
+connect basal_07(0),basal_06(1)
+
+
+
+create basal_08
+basal_08 {
+    pt3dclear()
+    pt3dadd(-75,  0,   0,    3)
+    pt3dadd(-85,  0,   0,    3)
+}
+
+connect basal_08(0),basal_07(1)
+
+
+
+create basal_09
+basal_09 {
+    pt3dclear()
+    pt3dadd(-85,  0,   0,    3)
+    pt3dadd(-95,  0,   0,    3)
+}
+
+connect basal_09(0),basal_08(1)
+
+
+
+create basal_10
+basal_10 {
+    pt3dclear()
+    pt3dadd(- 95,  0,   0,    3)
+    pt3dadd(-105,  0,   0,    3)
+}
+
+connect basal_10(0),basal_09(1)
+
+
+
+create basal_11
+basal_11 {
+    pt3dclear()
+    pt3dadd(-105,  0,   0,    3)
+    pt3dadd(-115,  0,   0,    3)
+}
+
+connect basal_11(0),basal_10(1)
+
+
+
+create basal_12
+basal_12 {
+    pt3dclear()
+    pt3dadd(-115,  0,   0,    3)
+    pt3dadd(-125,  0,   0,    3)
+}
+
+connect basal_12(0),basal_11(1)
+
+
+
+create basal_13
+basal_13 {
+    pt3dclear()
+    pt3dadd(-125,  0,   0,    3)
+    pt3dadd(-135,  0,   0,    3)
+}
+
+connect basal_13(0),basal_12(1)
+
+
+
+create basal_14
+basal_14 {
+    pt3dclear()
+    pt3dadd(-135,  0,   0,    3)
+    pt3dadd(-145,  0,   0,    3)
+}
+
+connect basal_14(0),basal_13(1)
+
+
+
+create basal_15
+basal_15 {
+    pt3dclear()
+    pt3dadd(-145,  0,   0,    3)
+    pt3dadd(-155,  0,   0,    3)
+}
+
+connect basal_15(0),basal_14(1)
+
+
+
+create basal_16
+basal_16 {
+    pt3dclear()
+    pt3dadd(-155,  0,   0,    3)
+    pt3dadd(-165,  0,   0,    3)
+}
+
+connect basal_16(0),basal_15(1)
+
+
+
+create basal_17
+basal_17 {
+    pt3dclear()
+    pt3dadd(-165,  0,   0,    3)
+    pt3dadd(-175,  0,   0,    3)
+}
+
+connect basal_17(0),basal_16(1)
+
+
+
+create basal_18
+basal_18 {
+    pt3dclear()
+    pt3dadd(-175,  0,   0,    3)
+    pt3dadd(-185,  0,   0,    3)
+}
+
+connect basal_18(0),basal_17(1)
+
+
+
+create basal_19
+basal_19 {
+    pt3dclear()
+    pt3dadd(-185,  0,   0,    3)
+    pt3dadd(-195,  0,   0,    3)
+}
+
+connect basal_19(0),basal_18(1)
+
+
+
+create basal_20
+basal_20 {
+    pt3dclear()
+    pt3dadd(-195,  0,   0,    3)
+    pt3dadd(-205,  0,   0,    3)
+}
+
+connect basal_20(0),basal_19(1)
+
+
+
+create basal_21
+basal_21 {
+    pt3dclear()
+    pt3dadd(-205,  0,   0,    3)
+    pt3dadd(-215,  0,   0,    3)
+}
+
+connect basal_21(0),basal_20(1)
+
+
+create basal_22
+basal_22 {
+    pt3dclear()
+    pt3dadd(-215,  0,   0,    3)
+    pt3dadd(-225,  0,   0,    3)
+}
+
+connect basal_22(0),basal_21(1)
+
+
+create basal_23
+basal_23 {
+    pt3dclear()
+    pt3dadd(-225,  0,   0,    3)
+    pt3dadd(-235,  0,   0,    3)
+}
+
+connect basal_23(0),basal_22(1)
+
+
+create basal_24
+basal_24 {
+    pt3dclear()
+    pt3dadd(-235,  0,   0,    3)
+    pt3dadd(-245,  0,   0,    3)
+}
+
+connect basal_24(0),basal_23(1)
+
+
+create basal_25
+basal_25 {
+    pt3dclear()
+    pt3dadd(-245,  0,   0,    3)
+    pt3dadd(-255,  0,   0,    3)
+}
+
+connect basal_25(0),basal_24(1)
+
+/**********************************************************************/
+
+create basal_26
+basal_26 {
+    pt3dclear()
+    pt3dadd(-255,  0,   0,    3)
+    pt3dadd(-265,  0,   0,    3)
+}
+
+connect basal_26(0),basal_25(1)
+
+
+create basal_27
+basal_27 {
+    pt3dclear()
+    pt3dadd(-265,  0,   0,    3)
+    pt3dadd(-275,  0,   0,    3)
+}
+
+connect basal_27(0),basal_26(1)
+
+
+create basal_28
+basal_28 {
+    pt3dclear()
+    pt3dadd(-275,  0,   0,    3)
+    pt3dadd(-285,  0,   0,    3)
+}
+
+connect basal_28(0),basal_27(1)
+
+
+create basal_29
+basal_29 {
+    pt3dclear()
+    pt3dadd(-285,  0,   0,    3)
+    pt3dadd(-295,  0,   0,    3)
+}
+
+connect basal_29(0),basal_28(1)
+
+
+
+create basal_30
+basal_30 {
+    pt3dclear()
+    pt3dadd(-295,  0,   0,    3)
+    pt3dadd(-305,  0,   0,    3)
+}
+
+connect basal_30(0),basal_29(1)
+
+
+
+
+create basal_31
+basal_31 {
+    pt3dclear()
+    pt3dadd(-305,  0,   0,    3)
+    pt3dadd(-315,  0,   0,    3)
+}
+
+connect basal_31(0),basal_30(1)
+
+
+create basal_32
+basal_32 {
+    pt3dclear()
+    pt3dadd(-315,  0,   0,    3)
+    pt3dadd(-325,  0,   0,    3)
+}
+
+connect basal_32(0),basal_31(1)
+
+
+create basal_33
+basal_33 {
+    pt3dclear()
+    pt3dadd(-325,  0,   0,    3)
+    pt3dadd(-335,  0,   0,    3)
+}
+
+connect basal_33(0),basal_32(1)
+
+
+create basal_34
+basal_34 {
+    pt3dclear()
+    pt3dadd(-335,  0,   0,    3)
+    pt3dadd(-345,  0,   0,    3)
+}
+
+connect basal_34(0),basal_33(1)
+
+
+create basal_35
+basal_35 {
+    pt3dclear()
+    pt3dadd(-345,  0,   0,    3)
+    pt3dadd(-355,  0,   0,    3)
+}
+
+connect basal_35(0),basal_34(1)
+
+
+create basal_36
+basal_36 {
+    pt3dclear()
+    pt3dadd(-355,  0,   0,    3)
+    pt3dadd(-365,  0,   0,    3)
+}
+
+connect basal_36(0),basal_35(1)
+
+
+create basal_37
+basal_37 {
+    pt3dclear()
+    pt3dadd(-365,  0,   0,    3)
+    pt3dadd(-375,  0,   0,    3)
+}
+
+connect basal_37(0),basal_36(1)
+
+
+create basal_38
+basal_38 {
+    pt3dclear()
+    pt3dadd(-375,  0,   0,    3)
+    pt3dadd(-385,  0,   0,    3)
+}
+
+connect basal_38(0),basal_37(1)
+
+
+create basal_39
+basal_39 {
+    pt3dclear()
+    pt3dadd(-385,  0,   0,    3)
+    pt3dadd(-395,  0,   0,    3)
+}
+
+connect basal_39(0),basal_38(1)
+
+
+
+create basal_40
+basal_40 {
+    pt3dclear()
+    pt3dadd(-395,  0,   0,    3)
+    pt3dadd(-405,  0,   0,    3)
+}
+
+connect basal_40(0),basal_39(1)
+
+
+create basal_41
+basal_41 {
+    pt3dclear()
+    pt3dadd(-405,  0,   0,    3)
+    pt3dadd(-415,  0,   0,    3)
+}
+
+connect basal_41(0),basal_40(1)
+
+
+create basal_42
+basal_42 {
+    pt3dclear()
+    pt3dadd(-415,  0,   0,    3)
+    pt3dadd(-425,  0,   0,    3)
+}
+
+connect basal_42(0),basal_41(1)
+
+
+create basal_43
+basal_43 {
+    pt3dclear()
+    pt3dadd(-425,  0,   0,    3)
+    pt3dadd(-435,  0,   0,    3)
+}
+
+connect basal_43(0),basal_42(1)
+
+
+create basal_44
+basal_44 {
+    pt3dclear()
+    pt3dadd(-435,  0,   0,    3)
+    pt3dadd(-445,  0,   0,    3)
+}
+
+connect basal_44(0),basal_43(1)
+
+
+create basal_45
+basal_45 {
+    pt3dclear()
+    pt3dadd(-445,  0,   0,    3)
+    pt3dadd(-455,  0,   0,    3)
+}
+
+connect basal_45(0),basal_44(1)
+
+
+create basal_46
+basal_46 {
+    pt3dclear()
+    pt3dadd(-455,  0,   0,    3)
+    pt3dadd(-465,  0,   0,    3)
+}
+
+connect basal_46(0),basal_45(1)
+
+
+create basal_47
+basal_47 {
+    pt3dclear()
+    pt3dadd(-465,  0,   0,    3)
+    pt3dadd(-475,  0,   0,    3)
+}
+
+connect basal_47(0),basal_46(1)
+
+
+create basal_48
+basal_48 {
+    pt3dclear()
+    pt3dadd(-475,  0,   0,    3)
+    pt3dadd(-485,  0,   0,    3)
+}
+
+connect basal_48(0),basal_47(1)
+
+
+create basal_49
+basal_49 {
+    pt3dclear()
+    pt3dadd(-485,  0,   0,    3)
+    pt3dadd(-495,  0,   0,    3)
+}
+
+connect basal_49(0),basal_48(1)
+
+
+
+create basal_50
+basal_50 {
+    pt3dclear()
+    pt3dadd(-495,  0,   0,    3)
+    pt3dadd(-505,  0,   0,    3)
+}
+
+connect basal_50(0),basal_49(1)
+
+
+
+
+
+
+
+
+
+

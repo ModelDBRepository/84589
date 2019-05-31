@@ -1,0 +1,263 @@
+/****************************************************************************
+Copyright (c) California Institute of Technology, 2006 -- All Rights Reserved
+Royalty free license granted for non-profit research and educational purposes.
+******************************************************************************/
+
+
+/**********************************************************************
+
+COMMAND LINE TO EXECUTE FROM root dir of package
+
+mod/i686/special  hoc/src/refs.hoc cells/d151.hoc hoc/src/file_util.hoc hoc/src/main.hoc
+mod/i686/special  hoc/src/refs.hoc cells/line2.hoc hoc/src/file_util.hoc hoc/src/main.hoc
+
+
+Command Line Files Description:
+-------------------------------
+
+refs.hoc - defines all object/string references
+
+d151.hoc - creates the 3-D structure of the cell; for another cell
+substitute a different file but be sure to define the strings
+'neuron_name' and 'cell_type' in the cell file (these are declared in
+refs.hoc)
+
+file_util.hoc - has procedures to load the other code files (those not
+on the command line) used by the main program, and also to create
+output directories, etc.
+
+main.hoc - this file, the main routine.  It contains no procedures
+and runs when it is loaded (all other code files contain only
+procedures.)
+
+
+Loaded Utility Files Description:
+-------------------------------
+
+cell_util.hoc - utilities used in setting up the cell and also
+managing the simulated synaptic input
+
+membrane_init.hoc - procedures for creating the non-uniform
+distribution of active ionic current densities
+
+current_util.hoc - procedures for creating the main program output
+i.e. the membrane currents at every time, along with details of the
+intracellular state of the simulation for selected compartments
+
+mechdesc.hoc - template used in managing the output of mechanism
+details (used by current_util.hoc)
+
+*/
+
+/**********************************************************************
+
+PROGRAM OUTPUT:
+
+All output file names are of the form cell_trial_xxx.dat for tabbed
+numeric data and cell_trial_....txt for text.
+i.e. d151_0001_filename.dat.  In the following only the suffix
+of the names are described:
+
+
+..._geom.dat - coordinates and diamters for each line segment
+that makes up the cell.
+
+cell_trail_txx.xxx.dat - the net membrane current associated with
+each line segment as listed in ...geom.dat for the time step which
+ended at t=xx.xxx
+
+..._times.dat - a complete list of all the times at which line
+segment current data was exported (all the times for which there
+exists a file ..._txx.xxx.dat)
+
+..._secnames.txt - the name of every section in the neuron
+geometry (meaning an unbranched piece of neurite - not to be confused
+with line segments!)
+
+..._secnums.txt - the first line segment in the geometry file
+and the number of line segments corresponding to each section listed
+in ..._segnames.txt.   With ...__segnames.txt and ...__segnums.dat 
+every line segment can be associated with the correct section.
+
+..._name_0.xx.dat (multiple files of this type) - these files
+contain details of the simulation for the section indicated by 'name'
+and the compartment referenced by x=0.xx.  The first column of these
+files is always the time steps for export (i.e.  the first column is
+redundant with the file ..._times.dat) The content of the remaining
+columns is described by the files ..._curr_types.txt and
+..._mech_gates.txt
+
+..._curr_types.txt - the rows of this file describe the 2nd through
+10th column of the compartment details files (..._name_0.xx.dat).  At
+time of this writing these columns are:
+
+I_tot - the total membrane current
+V - the membrane potential
+I_cap - capacitive component of the membrane current
+I_k - potassium component of the membrane  current
+I_na - sodium component of the membrane  durrent
+I_ca - calcium  component of the membrane current
+I_pas - passive mechanism  component of the membrane current (leak current)
+I_in - axial current towards the soma
+I_out - axial current away from the soma
+
+..._mech_gates.txt - the names in each row describes the remaining
+columns of the compartment details files (..._name_0.xx.dat).  These
+will typically list the gating particles and conductance for every
+mechanism used in the simulation.  See the template in mechdesc.hoc
+and the code in current_util.hoc for details of how this is organized.
+
+*/
+
+
+
+//---------------------------------------------------------------
+// PROGRAM INITIALIZATION
+/*
+See file_util.hoc for description of these procedures
+*/
+
+print "\n-> Setting file roots..."
+set_file_roots()
+
+print "\n-> Updating trial number..."
+get_trial_number()  // this also defines the "trial_num_name" string variable    
+
+print "\n-> Making output directory..."
+make_output_directory()  // this also defines the "output_dir" string variable
+
+print "\n-> Opening param & geometry files..."
+open_param_output_files()
+
+print "\n-> Loading param files..."
+load_params_file()
+
+print "\n-> Loading code files..."
+load_code_files()
+
+
+
+//---------------------------------------------------------------
+// CELL SETUP
+/* 
+See cell_util.hoc and membrane_init.hoc for description of these
+procedures
+ */
+ 
+print "\n-> Making section lists..."
+make_lists()
+
+print "\n-> Calling membrane init procedure..."
+init_membrane()
+
+
+//----------------------------------------------------------------
+// NEURON INITIALIZATION
+/*
+Standard NEURON functions.  The object reference cvode is declared
+in refs.hoc
+*/
+
+
+print "\n-> Making CVODE object..."
+cvode = new CVode()
+cvode.active(1)
+
+
+print "\n-> Calling finitialize & fcurrent..."
+finitialize(V_rest)
+fcurrent()
+
+setup_sim_syn_input()
+
+//----------------------------------------------------------------
+// INITIALIZE OUTPUT
+/*
+See current_util.hoc for details of these procedures
+*/
+
+print "\n-> SAVING CURRENTS TYPES, GEOMETRY, SEG NAMES & SEG NUMS...\n"
+
+close_param_output_files()
+setup_detail_print()
+print_geom()
+print_sec_names()
+print_sec_num_pts()
+print_current_types()
+setup_times_print()
+
+//----------------------------------------------------------------
+// MAIN LOOP
+/*
+
+
+1) Check the status of the simulated synaptic input (and modify it if
+necessary).  See do_sim_syn_input in cell_util.hoc
+
+2) Advance one time step with fadvance
+
+3) Check on the last time that current data was saved and save data
+for the current time if appropriate.  See the procedures
+check_last_print, print_currents, print_details and print_time in 
+current_util.hoc
+
+4) Output a line of text (briefly) describing the current status
+of the simulation.  This includes the number of steps taken, and
+the maximum voltage so far at the soma.
+
+*/
+
+
+print "\n-> STARTING SIMULATION..."
+
+num_steps = 0
+vmax = V_rest
+tmax = 0
+
+
+while (t < tstop) {
+    
+    do_sim_syn_input()
+    
+    fadvance()
+    
+    if (check_last_print()==1) {
+	print_currents()    
+	print_details()
+	print_time()
+    }
+    
+    if (VERBOSE == 1) {
+	
+	num_steps += 1
+	
+	if (soma_ref.sec.v(.5)>vmax) {
+	    vmax = soma_ref.sec.v(.5)
+	    tmax = t
+	}
+	
+	print "-----------------------------------------------------------------------------------------------"	
+	printf("%s(%s).%d: t=%.2f / dt=%.4f, soma.v(.5)=%.1f [Soma_vmax=%.1f @ t=%.1f]\n", neuron_name, trial_num_name, num_steps, t, dt, soma_ref.sec.v(.5),vmax, tmax)
+	
+    }
+    
+}
+
+
+//----------------------------------------------------------------
+// CLEANUP
+/*
+See current_util.hoc for details
+*/
+
+cleanup_detail_print()
+cleanup_times_print()
+
+
+// BEEP BEEP BEEP
+// uncomment this to make a noise when the run finishes..
+
+// sprint(tmp_str,"%c",7)
+// print tmp_str
+// print tmp_str
+// print tmp_str

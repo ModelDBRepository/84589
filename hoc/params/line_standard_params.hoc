@@ -1,0 +1,602 @@
+/*
+
+This file defines all the parameters that are held constant across
+simulations of the simplified cylinder neurons in Gold, Henze and Koch
+(2007)  (Not very much different from the ca1 pyramidal cells... Changes
+a few of the distance dependences for parameter densities, and zeros out
+unused parameters for "basal" dendrites.)
+
+The approach is that absolutely all parameters of the simulation must
+be defined in either this file or the file containing cell specific
+conductance density parameters.  No parameters should appear in any
+code files.  All parameters are defined through define_param() or
+define_ratio_param() procedure calls so that they are all saved to the
+data files produced for the trials.  All of this is intended to create
+a simulation with no "magic" (hidden) numbers.
+
+The parameters are categorized as follows:
+
+Simulation Time Parameters
+Ionic Reversal Potentials (etc.)
+Dendrite Classification
+Compartment Size
+Spines
+Passive Parameters
+Ionic Current Density Paremeters
+Ionic Current Kinetics
+
+Note: this must be loaded AFTER the cell specific conductance
+densities have been loaded because some of the ionic current densities
+defined here are ratios of the cell specific conductances.
+
+*/
+
+//-------------------------------------------------------------------------------
+// a little message to standard output when the file is loaded
+print "LOADING STANDARD PARAMS for LINE (simple cylinder) cells..."
+
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+// SIMULATION TIME PARAMETERS
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+/* stop time, the minum step length between currents output.  Also set
+the integration method */
+
+
+define_param("tstop","25")
+define_param("min_tstep","0.045")   // minimum step for printing variable step currents
+                                    // must be >= fprint(...%06.3f...) roundoff in making filenames!
+			
+// 0 = backwards Euler, 2=crank-nicholson
+define_param("secondorder","2")
+
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+// REVERSAL POTENTIALS, ETC.
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+/* Resting potential and ionic reversal potentials.  Note that Gold et
+al. (2006) used E_k=-140 while Gold and Koch (2006) used the more
+standard E_k=-100.  Also a few miscellaneous parameters are set for
+the benefit of NEURON NMODL mechanisms.  */
+
+define_param("V_rest","-65")   // rest potential
+
+define_param("E_na"  ,"71")    // sodium reversal potential
+define_param("E_ca", "140")    // calcium reversal potential
+define_param("E_k"   ,"-100")  // potassium reversal potential
+
+define_param("celsius","37.5")  // temperature
+
+// this sets it to be the same as in the mod database
+// see file:/usr/local/nrn/nrnhelp/help/neuron/general/predec.html#Constants
+define_param("FARADAY","96520")
+
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+// DENDRITE CLASSIFICATION PARAMETER
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+/* params determing trunk vs. non-trunk in apical tree.  A smaller
+diameter than the trunk_min and greater thant tuft_max defines
+oblique.  See cell_util.hoc (make lists).  Used in channel model
+initialization */
+
+define_param("trunk_min_diam","1.25")
+define_param("tuft_max_diam","0.5")
+
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+// COMPARTMENT SIZE PARAMETERS
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+/* The parameter 'my_dlambda' defines the fraction of lamda_f100 to
+use in determing the number of compartments.  See cell_util.hoc
+(Defining the number of compartments.)  The max_seg_length parameters
+are used to force exceptions to the dlambda rule - only in the apical
+trunk (at the moment).  the n_axon_seg parameter is the number of
+compartments to use for the axon hillock and initial segment - this is
+many more than would be assigned by the dlambda approach (follows the
+approach of Mainen & Sejnowski 1995 and Holt & Koch 1999).  */
+
+
+define_param("my_dlambda",".1")
+
+// force more compartments in wide sections...
+define_param("trunk_max_seg_length","0")
+define_param("oblique_max_seg_length", "0")
+define_param("tuft_max_seg_length","0")
+define_param("basal_max_seg_length","0")
+
+define_param("n_axon_seg","5")
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+// SPINES
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+/* These parameters define the spine densities described in the
+appendix of Gold et. al (2006).  They are used in the
+membrane_init.hoc (spines & passive setup & dendrite setup sections)
+
+The "is_spiny" area turns on/off the entire spine correction system.  So for
+a non-spiny cell simply set this parameter to zero. */
+
+
+define_param("is_spiny", "1")
+
+define_param("spine_area","1") // use a simple round number...
+
+define_param("trunk_prox_spine_dens","0") 
+define_param("trunk_med_spine_dens","0") 
+define_param("trunk_dist_spine_dens","9.45") // with spine area 1, this makes cm=2
+define_param("trunk_lm_spine_dens", "0")
+
+define_param("trunk_med_min_dist","0")
+define_param("trunk_med_max_dist","20")      // this defines the minimum distance for "spines" in apical dends
+// define_param("trunk_med_max_dist","0")      // for no spines
+define_param("lm_min_dist","0")
+
+define_param("oblique_prox_spine_dens","0")
+define_param("oblique_dist_spine_dens","0")
+
+define_param("tuft_prox_spine_dens","0")
+define_param("tuft_dist_spine_dens","0")
+define_param("tuft_prox_max_dist","0")
+
+
+define_param("basal_prox_spine_dens","0")
+define_param("basal_dist_spine_dens","9.45")
+define_param("basal_prox_max_dist","20")
+
+
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+// PASSIVE
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+/* Parameters for passive mechanism conductance (i.e. 1/r_m), cm and
+Ra.(They are defined here and saved to the parameter file and actual
+NEURON variables by the same name are defined in membrane_init.hoc) */
+
+define_param("r_m", "1.5e4")
+define_param("r_m_my", "4e4")
+define_param("r_m_node", "1e3")
+
+define_param("c_m", "1")
+define_param("c_m_my","0.05")
+
+define_param("r_a", "70") 
+define_param("r_a_ax"  , "50")
+
+
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+// ION CHANNEL DENSITIES
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+/* 
+
+These are parameters controlling ionic current densities that are held
+constant for all cells in Gold et al. (2006) and Gold and Koch (2006).
+These include distance parameters for non-uniform conductance
+densities and some densities which are simply constant for all cells
+(i.e. calcium and H type currents).  Also in this file are a number of
+parameters allowing different densities in apical and basal dendrites
+- these parameters are all currently set to 1.0 (identical
+basal/apical density.)  These were never used in the final simulation
+versions described in the papers, but the parameters were left intact
+to make further experimentation convenient (membrane_init.hoc already
+has separate apical/basal initiation functions, so why not?)
+
+If you want to vary any of these parameters on a cell by cell basis,
+simply cut it from this file and paste it into all of the cell
+specific density files (i.e d151_params.hoc)
+
+*/
+
+//----------------------------------------------------
+// NAF
+
+define_param("gna_apical_min_dist","500")
+define_param("gna_basal_min_dist","500")
+define_ratio_param("gna_node", "gna_default", "gna_default_node_ratio", "0")
+
+
+//-----------------------------------------------------
+// KK
+
+define_ratio_param("gkk_basal", "gkk", "gkk_basal_ratio", "1.0")
+define_ratio_param("gkd_basal", "gkd", "gkd_basal_ratio", "1.0")
+
+
+//-----------------------------------------------
+// KA PROX
+
+
+define_ratio_param("gka_prox_basal", "gka_prox_apical", "gka_prox_apical_basal_ratio", "1.0")
+
+define_param("kaprox_max_dist_apical" ,"100")
+define_param("kaprox_max_dist_basal" ,"100")
+
+
+
+//-----------------------------------------------
+// KA DIST
+
+
+
+
+define_param("kadist_peak_dist_apical","400")
+define_param("kadist_peak_dist_basal" ,"400") 
+
+
+//----------------------------------------------
+// KC
+
+define_param("kc_max_distance_apical","50")
+define_param("kc_max_distance_basal","50")
+
+//----------------------------------------------
+// KM
+
+define_ratio_param("gkm_basal", "gkm", "gkm_basal_ratio", "1.0")
+
+
+//----------------------------------------------
+// KAHP
+
+define_param("gkahp_hi_apical"  ,"5e-4")
+define_param("gkahp_lo_apical" , "2.5e-4")
+
+define_ratio_param("gkahp_hi_basal", "gkahp_hi_apical", "gkahp_hi_basal_apical_ratio", "1")
+define_ratio_param("gkahp_lo_basal", "gkahp_lo_apical", "gkahp_lo_basal_apical_ratio", "1")
+
+define_param("kahp_max_hi_distance_apical","100")
+define_param("kahp_max_hi_distance_basal","100")
+
+//----------------------------------------------
+// CAT
+
+define_param("gcat_apical"  ,".0001")
+define_ratio_param("gcat_basal", "gcat_apical", "gcat_basal_apical_ratio", "1")
+
+define_param("cat_max_distance_apical","150")
+define_param("cat_max_distance_basal" ,"150")
+
+
+
+// -----------------------------------------
+// CAR
+
+define_param("gcar_dend"  ,".0002")
+define_ratio_param("gcar_soma", "gcar_dend", "car_soma_apical_ratio", "0.1")
+define_ratio_param("gcar_basal","gcar_dend", "car_apical_basal_ratio","0.1")
+
+// -----------------------------------------
+// CAN
+
+
+define_param("gcan_soma"  ,".0002")
+
+
+// -----------------------------------------
+// CAL (HVAl)
+
+define_param("gcal_soma"  ,".0002")
+
+define_ratio_param("gcal_apical_hi", "gcal_soma", "gcal_apical_hi_soma_ratio", "1.0")
+define_ratio_param("gcal_apical_lo", "gcal_soma", "gcal_apical_lo_soma_ratio", "0.02")
+define_ratio_param("gcal_basal_hi", "gcal_soma", "gcal_basal_hi_soma_ratio", "1.0")
+define_ratio_param("gcal_basal_lo", "gcal_soma", "gcal_basal_lo_soma_ratio", "0.02")
+
+define_param("cal_max_hi_distance_apical","50")
+define_param("cal_max_hi_distance_basal" ,"50")
+
+//------------------------------------
+// H SOMA
+
+
+define_param("gh_soma" ,"0.0005")   
+
+
+//------------------------------------
+// H DEND
+
+define_ratio_param("gh_apical_min", "gh_soma", "gh_apical_min_soma_ratio", "1.0")
+define_ratio_param("gh_apical_max", "gh_soma", "gh_apical_max_soma_ratio", "6.0")
+
+define_ratio_param("gh_basal_min", "gh_soma", "gh_basal_min_soma_ratio", "1.0")
+define_ratio_param("gh_basal_max", "gh_soma", "gh_basal_max_soma_ratio", "6.0")
+
+define_param("h_max_distance_apical", "300")
+define_param("h_max_distance_basal", "300")
+
+
+
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+// ION CHANNEL KINETICS 
+//--------------------------------------------------------------------------------
+//--------------------------------------------------------------------------------
+
+/* 
+
+Same as for the ca1 pyramidal cells - see that ca1_standar_params.hoc
+file for full documenation.
+
+*/
+
+
+//----------------------------------------------------
+// NAF
+
+define_param(    "exp_m_naf","3")
+define_param(  "vhalf_m_naf","-46")
+define_param( "vsteep_m_naf", "-6")
+define_param(  "tskew_m_naf", "0.05")
+define_param( "tscale_m_naf", "0.01")
+define_param("toffset_m_naf", "0.04")
+
+define_param(    "exp_h_naf","1")
+define_param(  "vhalf_h_naf","-50")
+define_param( "vsteep_h_naf", "2")
+define_param(  "tskew_h_naf", "0.2")
+define_param( "tscale_h_naf", "0.5")
+define_param("toffset_h_naf", "0.25")
+
+
+//----------------------------------------------------
+// NAX
+
+define_param(    "exp_m_nax","3")
+define_param(  "vhalf_m_nax","-51")
+define_param( "vsteep_m_nax", "-5.5")
+define_param(  "tskew_m_nax", "0.05")
+define_param( "tscale_m_nax", "0.01")
+define_param("toffset_m_nax", "0.04")
+
+define_param(    "exp_h_nax","1")
+define_param(  "vhalf_h_nax","-50")
+define_param( "vsteep_h_nax", "2")
+define_param(  "tskew_h_nax", "0.2")
+define_param( "tscale_h_nax", "0.75")
+define_param("toffset_h_nax", "0.35")
+
+//-----------------------------------------------------
+// KK
+
+define_param(    "exp_m_kk","1")
+define_param(  "vhalf_m_kk","-5")
+define_param( "vsteep_m_kk","-5")
+define_param(  "tskew_m_kk", "0.5")
+define_param( "tscale_m_kk", "4")
+define_param("toffset_m_kk", "0.25")
+
+define_param(    "exp_h_kk","1")
+define_param(  "vhalf_h_kk","-65")
+define_param( "vsteep_h_kk","15")
+define_param(  "tskew_h_kk", "0.5")
+define_param( "tscale_h_kk", "1")
+define_param("toffset_h_kk", "100")
+
+
+//-----------------------------------------------
+// KD
+
+define_param(    "exp_m_kd","4")
+define_param(  "vhalf_m_kd","-60")
+define_param( "vsteep_m_kd","-8.4")
+define_param(  "tskew_m_kd", "0.5")
+define_param( "tscale_m_kd", "1")
+define_param("toffset_m_kd", ".25")
+
+
+define_param(    "exp_h_kd","2")
+define_param(  "vhalf_h_kd","-73")
+define_param( "vsteep_h_kd","10")
+define_param(  "tskew_h_kd", "0.5")
+define_param( "tscale_h_kd", "0")
+define_param("toffset_h_kd", "1e3")
+
+
+//-----------------------------------------------
+// KA PROX
+
+define_param(    "exp_m_kaprox","4")
+define_param(  "vhalf_m_kaprox","-40")
+define_param( "vsteep_m_kaprox","-8")
+define_param(  "tskew_m_kaprox", "0.85")
+define_param( "tscale_m_kaprox", "0")
+define_param("toffset_m_kaprox", "0.2")
+
+define_param(    "exp_h_kaprox","2")
+define_param(  "vhalf_h_kaprox","-50")
+define_param( "vsteep_h_kaprox","8")
+define_param(  "tskew_h_kaprox", "0.5")
+define_param( "tscale_h_kaprox", "1.5")
+define_param("toffset_h_kaprox", "0.3")
+
+
+
+//-----------------------------------------------
+// KA DIST
+
+define_param(    "exp_m_kadist","4")
+define_param(  "vhalf_m_kadist","-50")
+define_param( "vsteep_m_kadist","-8")
+define_param(  "tskew_m_kadist", "0.85")
+define_param( "tscale_m_kadist", "0")
+define_param("toffset_m_kadist", "0.2")
+
+define_param(    "exp_h_kadist","2")
+define_param(  "vhalf_h_kadist","-60")
+define_param( "vsteep_h_kadist","8")
+define_param(  "tskew_h_kadist", "0.5")
+define_param( "tscale_h_kadist", "1.5")
+define_param("toffset_h_kadist", "0.3")
+
+//-----------------------------------------------
+// KC
+
+define_param("k_oi_kc","12")
+define_param("k_ic_kc","-10")
+define_param("k_co_kc","6")
+define_param("k_oc_kc","-3")
+
+define_param("vhalf_oi_kc","-30")
+define_param("vhalf_ic_kc","-120")
+define_param("vhalf_co_kc","-45")
+define_param("vhalf_oc_kc","-40")
+
+define_param("tmin_oi_kc","1.5e0")
+define_param("tmin_ic_kc","1e-1")
+define_param("tmin_co_kc","2e-2")
+define_param("tmin_oc_kc","1.5e0")
+
+/* only the co transition has a tmax - this is hard coded into the mod
+file kc.mod*/
+define_param("tmax_co_kc","50")
+define_param("alpha_co_kc","2.5e10")
+
+
+//----------------------------------------------
+// KM
+
+define_param(    "exp_n_km","2")
+define_param(  "vhalf_n_km","-45")
+define_param( "vsteep_n_km","-4")
+define_param(  "tskew_n_km", "0.5")
+define_param( "tscale_n_km", "2.0")
+define_param("toffset_n_km", "2.0")
+
+
+
+
+//----------------------------------------------
+// KAHP
+
+define_param("alpha_n_kahp", "1e31")
+define_param("beta_n_kahp", "2e-1")
+define_param("toffset_n_kahp", "5")
+define_param("exp_n_kahp", "2")
+define_param("exp_ca_kahp", "8")
+
+
+
+//----------------------------------------------
+// CAT 
+
+define_param(    "exp_m_cat","2")
+define_param(  "vhalf_m_cat","-30")
+define_param( "vsteep_m_cat","-7")
+define_param(  "tskew_m_cat","0.1")
+define_param( "tscale_m_cat","5.0")
+define_param("toffset_m_cat","2.0")
+
+
+define_param(    "exp_h_cat","1")
+define_param(  "vhalf_h_cat","-60")
+define_param( "vsteep_h_cat","5.0")
+define_param(  "tskew_h_cat","0.5")
+define_param( "tscale_h_cat","1")
+define_param("toffset_h_cat","25")
+
+
+// -----------------------------------------
+// CAR
+
+define_param(    "exp_m_car","2")
+define_param(  "vhalf_m_car","0")
+define_param( "vsteep_m_car","-8")
+define_param(  "tskew_m_car","0.5")
+define_param( "tscale_m_car","3")
+define_param("toffset_m_car","2.0")
+
+define_param(    "exp_h_car","1")
+define_param(  "vhalf_h_car","-40")
+define_param( "vsteep_h_car","9")
+define_param(  "tskew_h_car","0.5")
+define_param( "tscale_h_car","1")
+define_param("toffset_h_car","50")
+
+
+// -----------------------------------------
+// CAN
+
+define_param(    "exp_m_can","2")
+define_param(  "vhalf_m_can","-14")
+define_param( "vsteep_m_can","-6.5")
+define_param(  "tskew_m_can","0.2")
+define_param( "tscale_m_can","5")
+define_param("toffset_m_can","1")
+
+define_param(    "exp_h_can","1")
+define_param(  "vhalf_h_can","-40")
+define_param( "vsteep_h_can","10")
+define_param(  "tskew_h_can","0.5")
+define_param( "tscale_h_can","1")
+define_param("toffset_h_can","50")
+
+
+// -----------------------------------------
+// CAL (HVAl)
+
+define_param(    "exp_n_cal","2")
+define_param(  "vhalf_n_cal","5")
+define_param( "vsteep_n_cal","-8")
+define_param(  "tskew_n_cal","0.5")
+define_param( "tscale_n_cal","2.0")
+define_param("toffset_n_cal","2.0")
+
+
+
+//------------------------------------
+// H SOMA
+
+define_param(    "exp_n_hsoma","1")
+define_param(  "vhalf_n_hsoma","-82")
+define_param( "vsteep_n_hsoma","4")
+define_param(  "tskew_n_hsoma","0.005")
+define_param( "tscale_n_hsoma","0")
+define_param("toffset_n_hsoma","10")
+
+
+
+//------------------------------------
+// H DEND
+
+define_param(    "exp_n_hdend","1")
+define_param(  "vhalf_n_hdend","-90")
+define_param( "vsteep_n_hdend","4")
+define_param(  "tskew_n_hdend","0.005")
+define_param( "tscale_n_hdend","0")
+define_param("toffset_n_hdend","10")
+
+
+//----------------------------------------------
+// CADIFUS
+
+define_param("cai_init","75e-6")
+define_param(  "DCa_cadifus","0.6")
+define_param(  "TotalBuffer_cadifus","0.005")
+define_param(  "k1buf_cadifus","250")
+define_param(  "k2buf_cadifus","0.1")
+
+
+
+
