@@ -1175,7 +1175,7 @@ proc make_mechanism_list() {
     
     all_mechs_list = new List()
     
-    sprint(tmp_str, "%s/%s_%s_mech_gates.txt", output_dir,neuron_name,trial_num_name)
+    sprint(tmp_str, "%s%s%s_%s_mech_gates.txt", output_dir,openfile_path_sep, neuron_name,trial_num_name)
     mech_desc_file = new File()
     mech_desc_file.wopen(tmp_str)
 
@@ -1344,12 +1344,13 @@ proc init_membrane() {
     setup_trunk()
     
     setup_oblique()
-    
+    print "here we go"
     setup_tuft()
-    
+    print "there we went"
     ions_setup()
-    
+    print "are"
     make_mechanism_list()
-    
+    print "we"
     jitter_gbars()
+    print "home yet"
 }

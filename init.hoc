@@ -1,0 +1,6 @@
+// init.hoc
+load_file("nrngui.hoc")
+load_file("hoc/src/refs.hoc")
+load_file("cells/d151.hoc")
+load_file("hoc/src/file_util.hoc")
+load_file("hoc/src/main.hoc")
