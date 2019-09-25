@@ -181,14 +181,10 @@ proc load_params_file() {local temp_type
     
     // conductance densities for the specific cell...
     print "LOADING CELL SPECIFIC MEMBRANE CONDUCTANCE DENSITIES..."
-print "param_dir = ", param_dir
+    print "param_dir = ", param_dir
 
     sprint(tmp_str, "%s%s%s_params.hoc", param_dir, loadfile_mkdir_path_sep, neuron_name)
-// system("dir") // in folders eaps hoc src 
-chdir("..")
-chdir("..")
-// system("dir") // back to folder eaps
-print "params file = ", tmp_str
+    print "params file = ", tmp_str
 
     load_file(tmp_str)
 	        
@@ -298,13 +294,17 @@ output file.
 
 proc make_output_directory() {local mkdir_result
     
-    
+    // system("dir") // ended up in hoc/src
+	chdir("..")
+	chdir("..")
+	// system("dir") // back in eaps root folder
+
     sprint(tmp_str, "mkdir %s%s%s_%s", output_root_dir, openfile_path_sep, neuron_name, trial_num_name)
     if (unix_mac_pc()==3) {sprint(tmp_str, "mkdir %s%s%s%s_%s", output_root_dir, openfile_path_sep, openfile_path_sep, neuron_name, trial_num_name)}
     print "COMMAND = ", tmp_str
     mkdir_result = system(tmp_str)
     print "RESULT = ", mkdir_result
-
+    
     sprint(tmp_str, "mkdir %s%s%s_%s%snrn", output_root_dir, openfile_path_sep, neuron_name, trial_num_name, openfile_path_sep)
     if (unix_mac_pc()==3 ) {   sprint(tmp_str, "mkdir %s%s%s%s_%s%s%snrn", output_root_dir, openfile_path_sep, openfile_path_sep, neuron_name, trial_num_name, openfile_path_sep, openfile_path_sep) }
     print "COMMAND = ", tmp_str
