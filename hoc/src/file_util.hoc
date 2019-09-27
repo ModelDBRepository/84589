@@ -355,21 +355,21 @@ number.)
 proc get_trial_number() {local trial_number
     
     trial_number=0
-    
+    if (WINDOWS) {
+    sprint(tmp_str, "..%s..\\%s%s%s_trial_num.txt", openfile_path_sep, cell_dir, openfile_path_sep, neuron_name)
+    } else {
     sprint(tmp_str, "..%s.%s%s%s_trial_num.txt", openfile_path_sep, cell_dir, openfile_path_sep, neuron_name)
-    print "here"
-    system("pwd")
+    }
+
     print tmp_str
     
     file_result = ropen(tmp_str)
-    print "file_result = ", file_result
+
     if (file_result == 0) {
 	print "\n Starting NEW trial number: "
 	trial_number = 1
     } else {
-        print "reading the file"
 	trial_number = fscan()
-        print "received new value"
     }
     
     print "trial number " , trial_number
