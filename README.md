@@ -37,7 +37,4 @@ See the "docs" folder for more instructions on using the Extracellular Action Po
 - 2019-09-25 Model entry updated to include a mosinit.hoc file so autolaunch will work (can also be used to easily start model).
 - 2019-09-26 Model entry updated to include a screenshot and updates to the readme and docs/index.html plus added temp folder to mat (matlab subfolder).
 - 2019-09-27 Updated so that multiple runs would work when d151_params_X.hoc are cp'd onto d151_params.hoc (see docs/index.html) for more info.
-
----
-
-2025-05-27 – Standardized to Markdown.
+- 2025-05-27 – Standardized to Markdown.
