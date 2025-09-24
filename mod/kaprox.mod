@@ -11,7 +11,6 @@ NEURON {
 	
 	GLOBAL vhalf_m, vsteep_m, exp_m 
 	GLOBAL tskew_m, tscale_m, toffset_m 
-	GLOBAL exp_m
 	
 	GLOBAL vhalf_h, vsteep_h, exp_h
 	GLOBAL tskew_h, tscale_h, toffset_h 
